@@ -8,14 +8,28 @@ controllers. Nothing to install: it all runs in the web browser.
 1. **Tablet:** open the game's web address, turn the tablet sideways, tap **Tap to start**.
 2. **Phones:** open the Camera app, point it at the QR code on the tablet, tap the link.
    The first phone is Player 1 (blue), the second is Player 2 (pink).
-3. Pick **1 v 1** or **Team v CPU** and **Easy / Medium / Hard** on the tablet or any phone.
+3. Pick the game (**🏓 Ping Pong** or **⚽ Soccer**), then **1 v 1** or **Team v CPU**,
+   then **Easy / Medium / Hard**, on the tablet or any phone.
 4. Press **START**. Swipe up and down on the phone to move your paddle.
+   Swipe *while* you hit the ball to bend its path and give it a curve: the faster
+   the swipe, the bigger the bend.
 5. First to 7 wins. Either phone can pause (❚❚) and resume (▶).
 
 The tablet's lobby (and the small text in the bottom corner during a game) shows
 how quick each phone's connection is: **⚡** means the phone talks straight to the
 tablet over Wi-Fi (fastest), **🌐** means it goes through the internet server.
 For ⚡, the phones and tablet must be on the same Wi-Fi.
+
+### Soccer
+
+Like a foosball table: each team has two rods with three players on each.
+Score by getting the ball into the other team's goal; every other wall bounces it back.
+
+- **1 v 1:** each phone shows two swipe areas side by side, one per rod
+  (🛡️ Defend and ⚽ Attack, in the same left/right order as on the tablet).
+  Use one thumb on each.
+- **Team v CPU with two kids:** one kid plays defence, the other attack, one swipe area each.
+  With one kid, they get both rods.
 
 If a phone locks or loses Wi-Fi, the game pauses and shows *Waiting for player*.
 Unlock the phone (or scan the code again) and the game carries on.
@@ -51,7 +65,8 @@ npm test
 
 See [docs/PLAN.md](docs/PLAN.md). In short:
 
-- `shared/` – the game rules (engine, computer player, settings). No screen code,
-  so it can be reused for the Apple TV version.
+- `shared/` – the game rules (engine, computer player, settings, physics). No screen code,
+  so it can be reused for the Apple TV version. `shared/games/` holds what is different
+  between Ping Pong and Soccer.
 - `server/` – serves the pages, makes QR codes, relays messages between phones and tablet.
 - `public/` – the tablet game screen (`index.html`) and the phone controller (`play.html`).

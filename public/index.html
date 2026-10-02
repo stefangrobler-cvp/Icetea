@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#05010f">
   <title>Neon Pong</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
@@ -17,7 +17,7 @@
 
   <!-- 1. Tap to start (lets the browser play sound) -->
   <section id="tap" class="overlay solid">
-    <h1 class="title neon">NEON PONG</h1>
+    <h1 class="title">NEON PONG</h1>
     <p class="medium neon pulse" style="color: var(--p1)">Tap to start</p>
     <p class="small rotate-hint">Turn the tablet sideways for the best view</p>
   </section>
@@ -31,24 +31,31 @@
         <p class="room-code">Room <span id="room-code">----</span></p>
       </div>
       <div class="settings">
-        <h1 class="title neon" style="font-size: clamp(24px, 4vw, 48px)">NEON PONG</h1>
+        <h1 class="title" style="font-size: clamp(26px, 4vw, 50px)">NEON PONG</h1>
         <div class="players">
           <div class="player-chip" id="chip-1" style="--c: var(--p1)">P1<small>Waiting…</small></div>
           <div class="player-chip" id="chip-2" style="--c: var(--p2)">P2<small>Waiting…</small></div>
         </div>
         <div>
-          <h3>Mode</h3>
+          <h3>Game</h3>
+          <div class="row game-cards" data-setting="game">
+            <button data-value="classic"><span class="icon">🏓</span>Ping Pong</button>
+            <button data-value="soccer"><span class="icon">⚽</span>Soccer</button>
+          </div>
+        </div>
+        <div>
+          <h3>Players</h3>
           <div class="row" data-setting="mode">
-            <button data-value="versus">1 v 1</button>
-            <button data-value="team">Team v CPU</button>
+            <button data-value="versus">🧒 1 v 1 🧒</button>
+            <button data-value="team">🧒🧒 Team v 🤖</button>
           </div>
         </div>
         <div>
           <h3>Difficulty</h3>
           <div class="row" data-setting="difficulty">
-            <button data-value="easy">Easy</button>
-            <button data-value="medium">Medium</button>
-            <button data-value="hard">Hard</button>
+            <button data-value="easy">🐢 Easy</button>
+            <button data-value="medium">🐇 Medium</button>
+            <button data-value="hard">🚀 Hard</button>
           </div>
         </div>
         <button id="start" class="go start-btn">START</button>
@@ -67,8 +74,8 @@
 
   <!-- 4. Winner celebration -->
   <section id="winner" class="overlay dim hidden">
-    <p class="big">🏆</p>
-    <p id="winner-text" class="title neon"></p>
+    <p class="big pop-in">🏆</p>
+    <p id="winner-text" class="big neon pop-in" style="font-size: clamp(40px, 8vw, 96px)"></p>
     <div class="row">
       <button id="again" class="go start-btn">Play again</button>
       <button id="change" class="start-btn">Change settings</button>

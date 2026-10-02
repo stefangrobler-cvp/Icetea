@@ -58,11 +58,23 @@ function noise(duration, volume, when = 0, filterFreq = 1500) {
 }
 
 export const sounds = {
-  paddle: () => beep(520, 0.07),
+  // Harder swipes give a higher, brighter hit.
+  paddle: (power = 0) => beep(500 + power * 260, 0.08, 'square', 0.22 + power * 0.08),
   wall: () => beep(260, 0.06),
   point: () => beep(330, 0.35, 'square', 0.25, 0, 110),
   tick: () => beep(660, 0.1, 'square', 0.18),
   go: () => beep(990, 0.18, 'square', 0.2),
+  // Soccer
+  kick(power = 0) {
+    beep(150 + power * 60, 0.12, 'sine', 0.5, 0, 60);
+    beep(900 + power * 400, 0.03, 'square', 0.1 + power * 0.08); // the "tock" of the boot
+  },
+  thud: () => beep(110, 0.1, 'sine', 0.4, 0, 70),
+  post: () => { beep(1400, 0.35, 'triangle', 0.2, 0, 1300); beep(2100, 0.25, 'triangle', 0.1); },
+  whistle() {
+    beep(2200, 0.18, 'square', 0.08);
+    beep(2400, 0.32, 'square', 0.08, 0.2);
+  },
   cheer() {
     noise(1.3, 0.35, 0.05, 1800);
     noise(1.1, 0.2, 0.1, 3200);

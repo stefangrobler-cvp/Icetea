@@ -13,7 +13,8 @@ export const MSG = {
 
   // phone -> server
   JOIN: 'join', // { t, room, clientId }
-  INPUT: 'in', // { t, y, n } paddle position, 0 (top) .. 1 (bottom); n counts up so old ones are ignored
+  INPUT: 'in', // { t, y, n, l } paddle position, 0 (top) .. 1 (bottom); n counts up so old ones
+  //              are ignored; l = which rod in soccer (0 defence, 1 attack)
   COMMAND: 'cmd', // { t, action, ...extra }
 
   // server -> phone
@@ -32,7 +33,7 @@ export const MSG = {
 
 // Actions a phone can send with MSG.COMMAND (the game screen uses them too).
 export const ACTIONS = {
-  SETTINGS: 'settings', // { mode?, difficulty? }
+  SETTINGS: 'settings', // { game?, mode?, difficulty? }
   START: 'start',
   PAUSE: 'pause',
   RESUME: 'resume',

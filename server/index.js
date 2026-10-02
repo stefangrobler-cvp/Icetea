@@ -157,7 +157,7 @@ function handlePhone(ws, msg) {
   if (msg.t === MSG.INPUT) {
     // Paddle movement: the hot path, forwarded as small as possible.
     // (Normally this goes over the direct link instead; this is the backup route.)
-    if (room.host) send(room.host, `{"t":"in","s":${ws.slot},"y":${Number(msg.y) || 0},"n":${Number(msg.n) || 0}}`);
+    if (room.host) send(room.host, `{"t":"in","s":${ws.slot},"y":${Number(msg.y) || 0},"n":${Number(msg.n) || 0},"l":${msg.l === 1 ? 1 : 0}}`);
   } else if (msg.t === MSG.COMMAND || msg.t === MSG.SIGNAL || msg.t === MSG.PING) {
     send(room.host, { ...msg, slot: ws.slot });
   }

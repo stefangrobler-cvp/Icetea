@@ -20,7 +20,6 @@ let slot = null;
 let state = null;
 let hostOnline = true;
 let problem = roomCode ? null : 'noroom';
-let paddle = 0.5; // 0 = top, 1 = bottom
 let matchId = null;
 let rtt = null; // last measured delay to the game screen and back, in ms
 
@@ -41,7 +40,7 @@ const conn = new Connection({
       case MSG.JOINED:
         slot = msg.slot;
         problem = null;
-        sendPaddle(true);
+        sendAll(true);
         if (!link.open) link.start();
         break;
       case MSG.SIGNAL:
@@ -60,8 +59,7 @@ const conn = new Connection({
         break;
       case MSG.STATE:
         if (state && msg.matchId !== matchId && msg.phase !== 'lobby') {
-          paddle = 0.5; // new match: paddles start in the middle
-          sendPaddle(true);
+          resetPositions(); // new match: paddles start in the middle
         }
         matchId = msg.matchId;
         state = msg;
@@ -92,64 +90,113 @@ setInterval(() => {
 }, 1000);
 
 // ---------- swiping ----------
+//
+// Ping pong: the whole screen is one swipe area. Soccer: one area per rod
+// (left and right, matching where the rods are on the tablet), so each
+// thumb works its own rod.
 
-let lastSentY = null;
+const LABELS = { main: '', def: '🛡️ Defend', att: '⚽ Attack' };
+const positions = {}; // lane -> paddle position, 0 (top) .. 1 (bottom)
+const lastSent = {}; // lane -> last position sent
 let seq = 0;
-function sendPaddle(force = false) {
-  const y = Math.round(paddle * 1000) / 1000;
-  if (!force && y === lastSentY) return;
-  lastSentY = y;
+let zones = []; // [{ lane, el, preview }]
+let zonesKey = '';
+
+function sendPaddle(lane, force = false) {
+  const y = Math.round((positions[lane] ?? 0.5) * 1000) / 1000;
+  if (!force && y === lastSent[lane]) return;
+  lastSent[lane] = y;
   seq += 1;
-  const msg = `{"t":"in","y":${y},"n":${seq}}`;
+  const msg = `{"t":"in","y":${y},"n":${seq},"l":${lane}}`;
   // Straight to the tablet if we can, otherwise through the server.
   if (!link.send(msg)) conn.send(msg);
   // Move the little paddle on the phone too, so kids can feel it working.
-  const preview = document.querySelector('.paddle-preview');
-  preview.style.transform = `translateY(${(paddle - 0.5) * window.innerHeight * 0.35}px)`;
+  const zone = zones.find((z) => z.lane === lane);
+  if (zone) zone.preview.style.transform = `translate(-50%, -50%) translateY(${(y - 0.5) * zone.el.clientHeight * (zone.rod ? 0.25 : 0.5)}px)`;
+}
+
+function sendAll(force = false) {
+  for (const lane of Object.keys(positions)) sendPaddle(Number(lane), force);
+}
+
+function resetPositions() {
+  for (const lane of Object.keys(positions)) positions[lane] = 0.5;
+  for (const z of zones) positions[z.lane] = 0.5;
+  sendAll(true);
 }
 
 // The direct link may drop a message now and then (on purpose, for speed),
-// so repeat the current position a few times a second.
-setInterval(() => { if (link.open) link.send(`{"t":"in","y":${lastSentY ?? 0.5},"n":${++seq}}`); }, 150);
-
-const swipe = $('swipe');
-const lastTouchY = new Map();
-swipe.addEventListener('touchstart', (e) => {
-  e.preventDefault();
-  for (const t of e.changedTouches) lastTouchY.set(t.identifier, t.clientY);
-  swipe.classList.add('touching');
-}, { passive: false });
-
-swipe.addEventListener('touchmove', (e) => {
-  e.preventDefault();
-  for (const t of e.changedTouches) {
-    const prev = lastTouchY.get(t.identifier);
-    if (prev === undefined) continue;
-    lastTouchY.set(t.identifier, t.clientY);
-    // Swiping about 70% of the screen height moves the paddle the full court.
-    paddle += (t.clientY - prev) / (window.innerHeight * 0.7);
+// so repeat the current positions a few times a second.
+setInterval(() => {
+  if (!link.open) return;
+  for (const z of zones) {
+    link.send(`{"t":"in","y":${lastSent[z.lane] ?? 0.5},"n":${++seq},"l":${z.lane}}`);
   }
-  paddle = Math.max(0, Math.min(1, paddle));
-  sendPaddle();
-}, { passive: false });
+}, 150);
 
-const endTouch = (e) => {
-  for (const t of e.changedTouches) lastTouchY.delete(t.identifier);
-  if (lastTouchY.size === 0) swipe.classList.remove('touching');
-};
-swipe.addEventListener('touchend', endTouch);
-swipe.addEventListener('touchcancel', endTouch);
+/** Build the swipe areas for the rods/paddle this phone controls. */
+function buildZones(controls, game) {
+  const key = JSON.stringify([controls, game]);
+  if (key === zonesKey) return;
+  zonesKey = key;
+  const container = $('zones');
+  container.innerHTML = '';
+  zones = controls.map(({ lane, kind }) => {
+    const el = document.createElement('div');
+    el.className = 'zone';
+    const preview = document.createElement('div');
+    preview.className = `preview${game === 'soccer' ? ' rod' : ''}`;
+    preview.innerHTML = game === 'soccer' ? '<i></i><i></i><i></i>' : '<i></i>';
+    el.innerHTML = `<div class="arrow">▲</div><div class="label">${LABELS[kind] || ''}</div><div class="arrow">▼</div>`;
+    el.appendChild(preview);
+    container.appendChild(el);
+    if (positions[lane] === undefined) positions[lane] = 0.5;
+    const zone = { lane, el, preview, rod: game === 'soccer' };
+    attachSwipe(zone);
+    return zone;
+  });
+  for (const z of zones) sendPaddle(z.lane, true);
+}
 
-// Mouse support, handy for testing on a computer.
-let mouseY = null;
-swipe.addEventListener('mousedown', (e) => { mouseY = e.clientY; });
-window.addEventListener('mouseup', () => { mouseY = null; });
-window.addEventListener('mousemove', (e) => {
-  if (mouseY === null) return;
-  paddle = Math.max(0, Math.min(1, paddle + (e.clientY - mouseY) / (window.innerHeight * 0.7)));
-  mouseY = e.clientY;
-  sendPaddle();
-});
+function attachSwipe(zone) {
+  const { el, lane } = zone;
+  const lastY = new Map(); // touch id -> last y
+  const move = (dy) => {
+    // Swiping about 70% of the screen height moves the paddle the whole way.
+    positions[lane] = Math.max(0, Math.min(1, positions[lane] + dy / (window.innerHeight * 0.7)));
+    sendPaddle(lane);
+  };
+  el.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    for (const t of e.changedTouches) lastY.set(t.identifier, t.clientY);
+    el.classList.add('touching');
+  }, { passive: false });
+  el.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    // A finger that started in this area keeps controlling it, even if it slides out.
+    for (const t of e.changedTouches) {
+      const prev = lastY.get(t.identifier);
+      if (prev === undefined) continue;
+      lastY.set(t.identifier, t.clientY);
+      move(t.clientY - prev);
+    }
+  }, { passive: false });
+  const end = (e) => {
+    for (const t of e.changedTouches) lastY.delete(t.identifier);
+    if (lastY.size === 0) el.classList.remove('touching');
+  };
+  el.addEventListener('touchend', end);
+  el.addEventListener('touchcancel', end);
+  // Mouse support, handy for testing on a computer.
+  let mouseY = null;
+  el.addEventListener('mousedown', (e) => { mouseY = e.clientY; });
+  window.addEventListener('mouseup', () => { mouseY = null; });
+  window.addEventListener('mousemove', (e) => {
+    if (mouseY === null) return;
+    move(e.clientY - mouseY);
+    mouseY = e.clientY;
+  });
+}
 
 // ---------- buttons ----------
 
@@ -191,11 +238,12 @@ function render() {
   show('status', Boolean(status));
   if (status) {
     $('status-text').textContent = status;
-    ['lobby', 'message', 'paused', 'over', 'swipe', 'score', 'pause'].forEach((id) => show(id, false));
+    ['lobby', 'message', 'paused', 'over', 'zones', 'score', 'pause'].forEach((id) => show(id, false));
     return;
   }
 
   const phase = state.phase;
+  document.body.dataset.game = state.settings.game;
   const mySide = state.sides[slot]; // 'left' | 'right' | undefined (not in this match)
   const inMatch = ['countdown', 'playing', 'paused', 'waiting'].includes(phase);
   const playing = inMatch && Boolean(mySide);
@@ -219,7 +267,9 @@ function render() {
   const team = state.settings.mode === 'team';
   $('score-left').style.color = team ? myColor : COLORS[1];
   $('score-right').style.color = team ? COLORS.cpu : COLORS[2];
-  show('swipe', playing && (phase === 'countdown' || phase === 'playing'));
+  const active = playing && (phase === 'countdown' || phase === 'playing');
+  if (playing) buildZones(state.controls[slot] || [], state.settings.game);
+  show('zones', active);
   show('pause', playing && (phase === 'countdown' || phase === 'playing'));
   show('paused', playing && phase === 'paused');
 

@@ -13,8 +13,9 @@ const $ = (id) => document.getElementById(id);
 
 const engine = new Engine();
 const renderer = new Renderer($('court'));
+window.neonPong = { engine }; // handy for testing from the browser console
 const players = { 1: false, 2: false }; // which phones are connected
-const lastSeq = { 1: 0, 2: 0 }; // newest paddle message seen from each phone
+const lastSeq = {}; // newest paddle message seen from each phone, per rod ("slot:lane")
 const lag = { 1: null, 2: null }; // { rtt, direct } as reported by each phone
 let room = null;
 let started = false; // has someone tapped "Tap to start"?
@@ -72,9 +73,11 @@ const links = new HostLinks({
 
 // Paddle positions can arrive by two routes, so ignore any older than the newest.
 function paddleInput(slot, msg) {
-  if (!(msg.n > lastSeq[slot])) return;
-  lastSeq[slot] = msg.n;
-  engine.setPaddle(slot, msg.y);
+  const lane = Number(msg.l) || 0;
+  const key = `${slot}:${lane}`;
+  if (!(msg.n > (lastSeq[key] || 0))) return;
+  lastSeq[key] = msg.n;
+  engine.setPaddle(slot, msg.y, lane);
 }
 
 function handlePing(slot, msg, reply) {
@@ -83,7 +86,7 @@ function handlePing(slot, msg, reply) {
 }
 
 function setPlayer(slot, connected) {
-  if (connected && !players[slot]) lastSeq[slot] = 0; // phone (re)joined: it may count from 1 again
+  if (connected && !players[slot]) { lastSeq[`${slot}:0`] = 0; lastSeq[`${slot}:1`] = 0; } // phone (re)joined: it may count from 1 again
   if (!connected) { links.close(slot); lag[slot] = null; }
   players[slot] = Boolean(connected);
   engine.setPlayerConnected(slot, players[slot]);
@@ -96,7 +99,7 @@ const connectedSlots = () => [1, 2].filter((s) => players[s]);
 function handleAction(action, data = {}) {
   switch (action) {
     case ACTIONS.SETTINGS:
-      engine.setSettings({ mode: data.mode, difficulty: data.difficulty });
+      engine.setSettings({ game: data.game, mode: data.mode, difficulty: data.difficulty });
       break;
     case ACTIONS.START:
     case ACTIONS.PLAY_AGAIN:
@@ -164,10 +167,12 @@ function syncPhones() {
 let lastView = '';
 function updateScreen() {
   const s = engine.state;
-  const view = JSON.stringify([started, s.phase, s.settings, players, lag, s.missing, s.winner,
+  const celebrating = Boolean(renderer.banner); // "GOAL!" is on screen
+  const view = JSON.stringify([started, s.phase, s.settings, players, lag, s.missing, s.winner, celebrating,
     s.phase === PHASE.COUNTDOWN ? Math.ceil(s.countdown) : 0]);
   if (view === lastView) return;
   lastView = view;
+  document.body.dataset.game = s.settings.game;
 
   $('tap').classList.toggle('hidden', started);
   $('lobby').classList.toggle('hidden', !started || s.phase !== PHASE.LOBBY);
@@ -197,7 +202,7 @@ function updateScreen() {
   $('message-qr').classList.add('hidden');
   $('resume').classList.add('hidden');
   msg.classList.remove('dim');
-  if (s.phase === PHASE.COUNTDOWN) {
+  if (s.phase === PHASE.COUNTDOWN && !celebrating) {
     msg.classList.remove('hidden');
     $('message-big').textContent = Math.ceil(s.countdown);
     $('message-big').style.color = COLORS.ball;
@@ -271,14 +276,16 @@ function confetti() {
 // ---------- main loop ----------
 
 function playEvents(events) {
+  const soccer = engine.state.settings.game === 'soccer';
+  renderer.handleEvents(events, engine.state);
   for (const ev of events) {
-    if (ev.type === 'hit') sounds.paddle();
-    else if (ev.type === 'wall') sounds.wall();
+    if (ev.type === 'hit') (soccer ? sounds.kick : sounds.paddle)(ev.power);
+    else if (ev.type === 'wall') (soccer ? sounds.thud : sounds.wall)();
+    else if (ev.type === 'post') sounds.post();
     else if (ev.type === 'countdown') sounds.tick();
-    else if (ev.type === 'serve') sounds.go();
+    else if (ev.type === 'serve') (soccer ? sounds.whistle : sounds.go)();
     else if (ev.type === 'point') {
-      sounds.point();
-      renderer.pointScored();
+      if (soccer) sounds.whistle(); else sounds.point();
       if (!events.some((e) => e.type === 'win')) setTimeout(sounds.cheer, 250);
     } else if (ev.type === 'win') {
       setTimeout(sounds.win, 300);

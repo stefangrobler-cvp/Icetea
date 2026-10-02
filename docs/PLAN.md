@@ -28,7 +28,10 @@ networking:
 | File | What it does |
 |------|--------------|
 | `shared/config.js` | Modes, difficulty numbers, colours, points to win |
-| `shared/engine.js` | Ball, paddles, scoring, countdown, pause, winner |
+| `shared/engine.js` | Match flow: countdown, pause, scoring, winner, paddle movement |
+| `shared/games/classic.js` | Ping Pong: one paddle per side |
+| `shared/games/soccer.js` | Soccer: foosball rods, goal mouths, posts |
+| `shared/physics.js` | Round ball vs rounded paddles, traction (swipe bends the path), spin |
 | `shared/ai.js` | The computer player |
 | `shared/protocol.js` | Names of the messages sent over the network |
 
