@@ -6,15 +6,22 @@
 //   2. reads engine.state to draw the court,
 //   3. passes player input in with setPaddle(), pause(), resume() etc.
 //
+// The match flow (countdown, pause, scoring, winning) lives here. What is
+// different between Ping Pong and Soccer lives in shared/games/.
 // Phase two (power-ups) can hook in at step() and add new event types.
 
 import {
-  COURT, PADDLE, BALL, MODES, DIFFICULTIES, COLORS, POINTS_TO_WIN,
-  COUNTDOWN_SECONDS, MAX_BOUNCE_ANGLE, DEFAULT_SETTINGS,
+  COURT, BALL, MODES, GAMES, DIFFICULTIES, POINTS_TO_WIN,
+  COUNTDOWN_SECONDS, DEFAULT_SETTINGS, PADDLE_GLIDE_SPEED,
 } from './config.js';
 import { ComputerPlayer } from './ai.js';
+import { applySpin, clamp } from './physics.js';
+import { classic } from './games/classic.js';
+import { soccer } from './games/soccer.js';
 
+const RULES = { classic, soccer };
 const SUBSTEP = 1 / 240; // physics runs in small slices so the ball never skips through a paddle
+const VELOCITY_SMOOTHING = 0.05; // seconds: how quickly a paddle's measured speed follows its movement
 
 export const PHASE = {
   LOBBY: 'lobby', // choosing settings
@@ -29,14 +36,15 @@ export class Engine {
   constructor({ rng = Math.random } = {}) {
     this.rng = rng;
     this.accumulator = 0;
-    this.ai = null;
+    this.ais = new Map(); // paddle id -> ComputerPlayer
+    this.time = 0;
     this.state = {
       settings: { ...DEFAULT_SETTINGS },
       phase: PHASE.LOBBY,
       matchId: 0,
       scores: { left: 0, right: 0 },
       paddles: [],
-      ball: { x: COURT.width / 2, y: COURT.height / 2, vx: 0, vy: 0, visible: false },
+      ball: { x: COURT.width / 2, y: COURT.height / 2, vx: 0, vy: 0, spin: 0, visible: false },
       countdown: 0, // seconds left in the countdown
       serveTo: 'left', // side the next serve goes towards
       resumeBall: false, // after a pause, continue the rally instead of serving
@@ -46,11 +54,21 @@ export class Engine {
     };
   }
 
+  get rules() {
+    return RULES[this.state.settings.game];
+  }
+
+  /** Ball speed for the current game and level. It never changes during a match. */
+  get speed() {
+    return this.rules.ballSpeed(DIFFICULTIES[this.state.settings.difficulty]);
+  }
+
   // ---------- settings & match flow ----------
 
-  setSettings({ mode, difficulty }) {
+  setSettings({ game, mode, difficulty }) {
     const s = this.state;
     if (s.phase !== PHASE.LOBBY && s.phase !== PHASE.OVER) return false;
+    if (game && GAMES[game]) s.settings.game = game;
     if (mode && MODES[mode]) s.settings.mode = mode;
     if (difficulty && DIFFICULTIES[difficulty]) s.settings.difficulty = difficulty;
     return true;
@@ -66,25 +84,14 @@ export class Engine {
     const s = this.state;
     const { mode, difficulty } = s.settings;
     const diff = DIFFICULTIES[difficulty];
-    const h = diff.paddleHeight;
-    const leftX = PADDLE.inset + PADDLE.width; // front face of a left paddle
-    const rightX = COURT.width - PADDLE.inset - PADDLE.width; // front face of a right paddle
-    const make = (id, side, color, slot = null) => ({
-      id, side, slot, color, h, w: PADDLE.width,
-      x: side === 'left' ? leftX : rightX,
-      y: COURT.height / 2,
-      human: slot !== null,
-    });
-
-    const sorted = [...slots].sort();
-    if (mode === 'versus') {
-      s.paddles = [make('p1', 'left', COLORS[1], 1), make('p2', 'right', COLORS[2], 2)];
-    } else {
-      s.paddles = sorted.map((slot) => make(`p${slot}`, 'left', COLORS[slot], slot));
-      s.paddles.push(make('cpu', 'right', COLORS.cpu));
-      this.ai = new ComputerPlayer(diff.ai, this.rng);
+    s.paddles = this.rules.createPaddles({ mode, diff, slots: [...slots].sort() });
+    for (const p of s.paddles) {
+      p.y = clamp(p.y, p.minY, p.maxY);
+      p.target = p.y; // where the player's finger wants it
+      p.vy = 0; // measured speed, used for "traction"
+      p.prevY = p.y;
     }
-    if (mode === 'versus') this.ai = null;
+    this.ais = new Map(s.paddles.filter((p) => !p.human).map((p) => [p.id, new ComputerPlayer(diff.ai, this.rng)]));
 
     s.matchId += 1;
     s.scores = { left: 0, right: 0 };
@@ -104,7 +111,7 @@ export class Engine {
     s.manualPause = false;
     s.missing = [];
     s.winner = null;
-    this.ai = null;
+    this.ais = new Map();
   }
 
   isInMatch(slot) {
@@ -118,12 +125,16 @@ export class Engine {
 
   // ---------- input ----------
 
-  /** y01: 0 = paddle at the top, 1 = paddle at the bottom. */
-  setPaddle(slot, y01) {
-    const paddle = this.state.paddles.find((p) => p.slot === slot);
-    if (!paddle || !Number.isFinite(y01)) return;
-    const t = Math.max(0, Math.min(1, y01));
-    paddle.y = paddle.h / 2 + t * (COURT.height - paddle.h);
+  /**
+   * y01: 0 = top, 1 = bottom. `lane` picks which rod in soccer when a
+   * player has two (0 = defence, 1 = attack); ping pong ignores it.
+   */
+  setPaddle(slot, y01, lane = 0) {
+    if (!Number.isFinite(y01)) return;
+    const mine = this.state.paddles.filter((p) => p.slot === slot);
+    const paddle = mine.length === 1 ? mine[0] : mine.find((p) => p.lane === lane);
+    if (!paddle) return;
+    paddle.target = paddle.minY + clamp(y01, 0, 1) * (paddle.maxY - paddle.minY);
   }
 
   pause() {
@@ -181,14 +192,13 @@ export class Engine {
     s.countdown = COUNTDOWN_SECONDS;
     s.resumeBall = resumeBall;
     if (!resumeBall) {
-      s.ball = { x: COURT.width / 2, y: COURT.height / 2, vx: 0, vy: 0, visible: true };
+      s.ball = { x: COURT.width / 2, y: COURT.height / 2, vx: 0, vy: 0, spin: 0, visible: true };
     }
-    if (this.ai) this.ai.reset();
+    for (const ai of this.ais.values()) ai.reset();
   }
 
   serve() {
     const s = this.state;
-    const speed = DIFFICULTIES[s.settings.difficulty].ballSpeed;
     // A gentle angle between 10 and 30 degrees, up or down.
     const deg = 10 + this.rng() * 20;
     const angle = (deg * Math.PI) / 180 * (this.rng() < 0.5 ? -1 : 1);
@@ -196,8 +206,9 @@ export class Engine {
     s.ball = {
       x: COURT.width / 2,
       y: COURT.height / 2,
-      vx: Math.cos(angle) * speed * dir,
-      vy: Math.sin(angle) * speed,
+      vx: Math.cos(angle) * this.speed * dir,
+      vy: Math.sin(angle) * this.speed,
+      spin: 0,
       visible: true,
     };
   }
@@ -217,6 +228,7 @@ export class Engine {
 
   tick(dt, events) {
     const s = this.state;
+    this.time += dt;
 
     if (s.phase === PHASE.COUNTDOWN) {
       const before = Math.ceil(s.countdown);
@@ -231,84 +243,77 @@ export class Engine {
       }
     }
 
-    // The computer keeps its paddle moving during countdowns too, like a human would.
-    if (this.ai && (s.phase === PHASE.PLAYING || s.phase === PHASE.COUNTDOWN)) {
-      const cpu = s.paddles.find((p) => p.id === 'cpu');
-      this.ai.update(dt, s.ball, cpu, s.phase === PHASE.PLAYING);
-      cpu.y = Math.max(cpu.h / 2, Math.min(COURT.height - cpu.h / 2, cpu.y));
-    }
-
+    const live = s.phase === PHASE.PLAYING || s.phase === PHASE.COUNTDOWN;
+    if (live) this.movePaddles(dt);
     if (s.phase !== PHASE.PLAYING) return;
     this.moveBall(dt, events);
+  }
+
+  movePaddles(dt) {
+    const s = this.state;
+    const glide = PADDLE_GLIDE_SPEED * dt;
+    for (const p of s.paddles) {
+      p.prevY = p.y;
+      if (p.human) {
+        // Glide to the finger: instant for normal swipes, smooths out big jumps.
+        p.y += clamp(p.target - p.y, -glide, glide);
+      } else {
+        // The computer keeps its paddle moving during countdowns too, like a human would.
+        this.ais.get(p.id)?.update(dt, s.ball, p, s.phase === PHASE.PLAYING);
+      }
+      p.y = clamp(p.y, p.minY, p.maxY);
+      // Remember how fast it's moving, for traction when it hits the ball.
+      const raw = (p.y - p.prevY) / dt;
+      p.vy += (raw - p.vy) * Math.min(1, dt / VELOCITY_SMOOTHING);
+    }
   }
 
   moveBall(dt, events) {
     const s = this.state;
     const ball = s.ball;
-    const r = BALL.size / 2;
-    const prevX = ball.x;
+    const r = BALL.radius;
     ball.x += ball.vx * dt;
     ball.y += ball.vy * dt;
+    applySpin(ball, this.speed, dt);
 
     // Top and bottom walls
-    if (ball.y - r < 0) {
-      ball.y = r;
-      ball.vy = Math.abs(ball.vy);
-      events.push({ type: 'wall' });
-    } else if (ball.y + r > COURT.height) {
-      ball.y = COURT.height - r;
-      ball.vy = -Math.abs(ball.vy);
-      events.push({ type: 'wall' });
+    if (ball.y - r < 0 || ball.y + r > COURT.height) {
+      const top = ball.y - r < 0;
+      ball.y = top ? r : COURT.height - r;
+      ball.vy = top ? Math.abs(ball.vy) : -Math.abs(ball.vy);
+      ball.spin = -(ball.spin || 0) * 0.5; // the curve flips and weakens, like a real bounce
+      events.push({ type: 'wall', x: ball.x, y: top ? 0 : COURT.height, nx: 0, ny: top ? 1 : -1 });
     }
 
-    // Paddles: did the ball's front edge cross a paddle's face this slice?
-    const movingLeft = ball.vx < 0;
-    const side = movingLeft ? 'left' : 'right';
-    const candidates = s.paddles.filter((p) => p.side === side).filter((p) => {
-      const crossed = movingLeft
-        ? prevX - r >= p.x && ball.x - r < p.x
-        : prevX + r <= p.x && ball.x + r > p.x;
-      return crossed && Math.abs(ball.y - p.y) <= p.h / 2 + r;
-    });
-    if (candidates.length > 0) {
-      // In team mode two paddles can overlap: the one closest to the ball takes the hit.
-      candidates.sort((a, b) => Math.abs(ball.y - a.y) - Math.abs(ball.y - b.y));
-      this.bounceOff(candidates[0]);
-      events.push({ type: 'hit', paddle: candidates[0].id, side });
-      return;
-    }
+    this.rules.collide(this, events);
 
-    // Past the end of the court: point to the other side.
-    if (ball.x + r < 0 || ball.x - r > COURT.width) {
-      const scorer = ball.x < 0 ? 'right' : 'left';
-      const loser = scorer === 'left' ? 'right' : 'left';
-      s.scores[scorer] += 1;
-      ball.visible = false;
-      events.push({ type: 'point', scorer });
-      if (s.scores[scorer] >= POINTS_TO_WIN) {
-        s.phase = PHASE.OVER;
-        s.winner = scorer;
-        events.push({ type: 'win', winner: scorer });
-      } else {
-        s.serveTo = loser; // serve towards whoever just lost the point
-        this.beginCountdown(false);
-      }
+    const scorer = this.rules.endZone(this, events);
+    if (!scorer) return;
+    const loser = scorer === 'left' ? 'right' : 'left';
+    s.scores[scorer] += 1;
+    ball.visible = false;
+    events.push({ type: 'point', scorer, x: ball.x, y: ball.y });
+    if (s.scores[scorer] >= POINTS_TO_WIN) {
+      s.phase = PHASE.OVER;
+      s.winner = scorer;
+      events.push({ type: 'win', winner: scorer });
+    } else {
+      s.serveTo = loser; // serve towards whoever just lost the point
+      this.beginCountdown(false);
     }
-  }
-
-  bounceOff(paddle) {
-    const ball = this.state.ball;
-    const r = BALL.size / 2;
-    const speed = Math.hypot(ball.vx, ball.vy); // speed never changes within a level
-    const offset = (ball.y - paddle.y) / (paddle.h / 2 + r); // -1 (top edge) .. 1 (bottom edge)
-    const angle = Math.max(-1, Math.min(1, offset)) * (MAX_BOUNCE_ANGLE * Math.PI) / 180;
-    const dir = paddle.side === 'left' ? 1 : -1;
-    ball.vx = Math.cos(angle) * speed * dir;
-    ball.vy = Math.sin(angle) * speed;
-    ball.x = paddle.side === 'left' ? paddle.x + r : paddle.x - r;
   }
 
   // ---------- for phones ----------
+
+  /** Which paddles/rods each phone controls, in left-to-right order as on the tablet. */
+  controls() {
+    const out = {};
+    for (const p of [...this.state.paddles].sort((a, b) => a.x - b.x)) {
+      if (!p.slot) continue;
+      (out[p.slot] ||= []).push({ lane: p.lane, kind: p.kind });
+    }
+    return out;
+  }
 
   /** Small summary sent to the phones whenever it changes. */
   summary() {
@@ -322,6 +327,7 @@ export class Engine {
       missing: [...s.missing],
       winner: s.winner,
       sides: Object.fromEntries(s.paddles.filter((p) => p.slot).map((p) => [p.slot, p.side])),
+      controls: this.controls(),
     };
   }
 }
