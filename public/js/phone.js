@@ -448,23 +448,34 @@ function render() {
   $('message-big').textContent = big;
   $('message-small').textContent = small;
 
-  // Game over
-  show('over', phase === 'over');
+  // Game over (after the slow-motion replay on the big screen)
+  const replaying = phase === 'over' && state.replay;
+  show('over', phase === 'over' && !replaying);
+  if (replaying) {
+    show('message', true);
+    $('message-big').textContent = '🎬';
+    $('message-small').textContent = 'Watch the replay on the big screen!';
+  }
   if (phase === 'over') {
+    const profiles = state.profiles || {};
+    const avatarOf = (s) => profiles[s]?.avatar || '🏆';
+    const winnerSlot = state.winner === 'left' ? 1 : 2;
     let text;
-    let icon = '🏆';
+    let icon;
     if (state.settings.mode === 'team') {
+      const kids = Object.keys(state.sides).map(Number);
       text = state.winner === 'left' ? 'TEAM WINS!' : 'Computer wins!';
-      if (state.winner !== 'left') icon = '🤖';
+      icon = state.winner === 'left' ? kids.map(avatarOf).join('') : '🤖';
     } else if (mySide && state.winner === mySide) {
       text = 'YOU WIN!';
+      icon = avatarOf(winnerSlot);
     } else {
-      text = `${nameOf(state.winner === 'left' ? 1 : 2)} wins!`;
-      icon = '👏';
+      text = `${profiles[winnerSlot]?.name || `Player ${winnerSlot}`} wins!`;
+      icon = avatarOf(winnerSlot);
     }
-    $('over-icon').textContent = icon;
+    $('over-icon').textContent = icon; // the crown sits on top (see .crowned in the CSS)
     $('over-text').textContent = text;
-    $('over-text').style.color = icon === '🤖' ? COLORS.cpu : myColor;
+    $('over-text').style.color = icon === '🤖' ? COLORS.cpu : COLORS[winnerSlot] || myColor;
     $('again').disabled = !state.canStart;
   }
 }

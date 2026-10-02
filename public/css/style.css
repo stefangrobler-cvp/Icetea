@@ -477,3 +477,63 @@ body[data-game='soccer'] .zone {
 .avatar-grid button.selected { background: var(--me); box-shadow: 0 0 22px var(--me); }
 .me-badge { font-size: 32px; cursor: pointer; }
 .chip-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Welcome and how to play (tablet) */
+.welcome-icons { font-size: clamp(48px, 8vw, 90px); margin: 0; }
+.welcome-btn { min-width: 260px; font-size: 32px; padding: 22px 40px; }
+.howto-title { font-size: clamp(30px, 5vw, 56px); }
+.howto-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  width: min(1040px, 94vw);
+}
+.howto-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 16px 14px;
+  border-radius: 22px;
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  font-size: clamp(14px, 1.7vw, 19px);
+  line-height: 1.35;
+  color: var(--muted);
+}
+.howto-card span { font-size: clamp(36px, 5vw, 54px); line-height: 1.1; }
+.howto-card b { color: var(--text); font-size: clamp(17px, 2vw, 23px); }
+@media (max-aspect-ratio: 1/1) { .howto-grid { grid-template-columns: repeat(2, 1fr); } }
+.howto-corner { left: 12px; right: auto; font-size: 22px; opacity: 0.8; }
+
+/* Winner */
+.crown { font-size: clamp(40px, 6vw, 70px); margin: 0 0 -24px; animation-delay: 0.15s; }
+.winner-avatar { font-size: clamp(90px, 16vw, 190px); filter: drop-shadow(0 0 30px rgba(255, 230, 0, 0.6)); }
+
+/* Replay */
+.replay {
+  position: fixed;
+  inset: 0;
+  border-top: 9vh solid #000;
+  border-bottom: 9vh solid #000;
+  pointer-events: auto;
+}
+.replay-badge {
+  position: absolute;
+  top: -7vh;
+  left: 24px;
+  font-size: clamp(18px, 3vh, 28px);
+  font-weight: 700;
+  color: #ff4d6d;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+.replay-skip {
+  position: absolute;
+  bottom: -6vh;
+  right: 24px;
+  font-size: clamp(13px, 2vh, 18px);
+  color: var(--muted);
+}
+
+/* Phone winner: crown on top of the winner's avatar */
+.crowned::before { content: '👑'; display: block; font-size: 0.45em; margin-bottom: -0.15em; }

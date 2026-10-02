@@ -5,7 +5,9 @@ controllers. Nothing to install: it all runs in the web browser.
 
 ## Playing
 
-1. **Tablet:** open the game's web address, turn the tablet sideways, tap **Tap to start**.
+1. **Tablet:** open the game's web address, turn the tablet sideways, press **▶ Start**.
+   The first time on a tablet, a one-page **How to play** guide appears first (also
+   available any time from the ❓ buttons).
 2. **Phones:** open the Camera app, point it at the QR code on the tablet, tap the link.
    Type your name and tap an animal avatar, then **Let's go!** (the phone remembers it;
    tap your avatar at the top of the menu to change it). The first phone is blue, the second pink.
@@ -41,6 +43,9 @@ Score by getting the ball into the other team's goal; every other wall bounces i
   shows on the tablet), and let go to kick. After 12 seconds it kicks by itself.
 - **Pause menu** (either phone or the tablet): ▶ resume, change the level on the fly
   (🐢 🐇 🚀), or 🏠 Main menu (tap twice) to pick a different game.
+
+When a match is won, the tablet replays the winning shot in slow motion (tap to skip),
+then shows the winner's avatar with a crown.
 
 If a phone locks or loses Wi-Fi, the game pauses and shows *Waiting for player*.
 Unlock the phone (or scan the code again) and the game carries on.

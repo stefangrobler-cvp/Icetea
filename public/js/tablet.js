@@ -8,6 +8,7 @@ import { cleanProfile, playerLabel } from '/shared/profile.js';
 import { Connection, keepScreenOn } from './net.js';
 import { HostLinks } from './direct.js';
 import { Renderer } from './renderer.js';
+import { Replay } from './replay.js';
 import { unlock, sounds } from './sound.js';
 
 const $ = (id) => document.getElementById(id);
@@ -22,7 +23,11 @@ const profiles = { 1: cleanProfile(null, 1), 2: cleanProfile(null, 2) }; // name
 const label = (slot) => playerLabel(profiles, slot); // "🦊 Mia"
 renderer.profiles = profiles; // the coin toss shows the avatars
 let room = null;
-let started = false; // has someone tapped "Tap to start"?
+let started = false; // has someone pressed Start on the welcome screen?
+let showHowto = false; // "How to play" screen on top
+const replay = new Replay(); // slow-motion replay of the winning shot
+let seenHowto = false; // shown automatically the first time on this tablet
+try { seenHowto = localStorage.getItem('neonpong.seenHowto') === '1'; } catch { /* private mode */ }
 
 // ---------- connection to the server ----------
 
@@ -105,6 +110,8 @@ const connectedSlots = () => [1, 2].filter((s) => players[s]);
 let pendingEvents = []; // events from phone actions (e.g. a kick), played on the next frame
 
 function handleAction(action, data = {}) {
+  // Leaving the winner screen (or the match) ends a replay that's still running.
+  if (replay.playing && [ACTIONS.PLAY_AGAIN, ACTIONS.START, ACTIONS.CHANGE_SETTINGS, ACTIONS.MENU].includes(action)) replay.stop();
   switch (action) {
     case ACTIONS.PROFILE:
       if (data.slot === 1 || data.slot === 2) profiles[data.slot] = cleanProfile(data, data.slot);
@@ -141,12 +148,27 @@ function handleAction(action, data = {}) {
 
 // ---------- tablet buttons ----------
 
-$('tap').addEventListener('click', () => {
+// Welcome screen. The first time on this tablet, Start shows "How to play" first.
+function letsGo() {
+  unlock(); // the first tap lets the browser play sound
+  keepScreenOn();
+  if (!seenHowto) { showHowto = true; updateScreen(); return; }
+  started = true;
+  updateScreen();
+}
+$('welcome-start').addEventListener('click', letsGo);
+$('welcome-howto').addEventListener('click', () => { unlock(); showHowto = true; updateScreen(); });
+$('lobby-howto').addEventListener('click', () => { showHowto = true; updateScreen(); });
+$('howto-done').addEventListener('click', () => {
   unlock();
   keepScreenOn();
+  seenHowto = true;
+  try { localStorage.setItem('neonpong.seenHowto', '1'); } catch { /* private mode */ }
+  showHowto = false;
   started = true;
   updateScreen();
 });
+$('replay').addEventListener('click', () => finishReplay());
 
 document.querySelectorAll('[data-setting] button').forEach((btn) => {
   btn.addEventListener('click', () => {
@@ -196,6 +218,7 @@ function phoneState() {
     profiles: { ...profiles },
     canStart: engine.canStart(connectedSlots()),
     needPlayers: mode.humans,
+    replay: replay.playing,
   };
 }
 
@@ -215,16 +238,18 @@ function updateScreen() {
   const s = engine.state;
   const celebrating = Boolean(renderer.banner); // "GOAL!" is on screen
   const k = s.kickoff;
-  const view = JSON.stringify([started, s.phase, s.settings, players, lag, profiles, s.missing, s.winner, celebrating,
+  const view = JSON.stringify([started, showHowto, replay.playing, s.phase, s.settings, players, lag, profiles, s.missing, s.winner, celebrating,
     s.phase === PHASE.TOSS && s.toss.timeLeft < 0.6, k && [k.side, k.slot, k.wait > 0],
     s.phase === PHASE.COUNTDOWN ? Math.ceil(s.countdown) : 0]);
   if (view === lastView) return;
   lastView = view;
   document.body.dataset.game = s.settings.game;
 
-  $('tap').classList.toggle('hidden', started);
-  $('lobby').classList.toggle('hidden', !started || s.phase !== PHASE.LOBBY);
-  $('winner').classList.toggle('hidden', !started || s.phase !== PHASE.OVER);
+  $('tap').classList.toggle('hidden', started || showHowto);
+  $('howto').classList.toggle('hidden', !showHowto);
+  $('lobby').classList.toggle('hidden', !started || showHowto || s.phase !== PHASE.LOBBY);
+  $('winner').classList.toggle('hidden', !started || s.phase !== PHASE.OVER || replay.playing);
+  $('replay').classList.toggle('hidden', !replay.playing);
   $('pause').classList.toggle('hidden', !started || !engine.inMatch || s.phase === PHASE.PAUSED || s.phase === PHASE.WAITING);
   if (!started) return;
 
@@ -297,9 +322,14 @@ function updateScreen() {
   if (s.phase === PHASE.OVER) {
     const team = s.settings.mode === 'team';
     const kids = [...new Set(s.paddles.filter((p) => p.slot).map((p) => p.slot))];
+    const winnerSlot = s.winner === 'left' ? 1 : 2;
+    // The winner's avatar, big, with a crown on top.
+    $('winner-avatar').textContent = team
+      ? (s.winner === 'left' ? kids.map((k) => profiles[k].avatar).join('') : '🤖')
+      : profiles[winnerSlot].avatar;
     const text = team
-      ? (s.winner === 'left' ? `${kids.map((k) => profiles[k].avatar).join('')} TEAM WINS!` : '🤖 COMPUTER WINS!')
-      : `${label(s.winner === 'left' ? 1 : 2)} wins!`;
+      ? (s.winner === 'left' ? 'TEAM WINS!' : 'COMPUTER WINS!')
+      : `${profiles[winnerSlot].name} wins!`;
     $('winner-text').textContent = text;
     $('winner-text').style.color = team
       ? (s.winner === 'left' ? COLORS[1] : COLORS.cpu)
@@ -345,10 +375,24 @@ function confetti() {
 
 // ---------- main loop ----------
 
+function celebrate() {
+  setTimeout(sounds.win, 300);
+  confetti();
+}
+
+function finishReplay() {
+  if (!replay.playing) return;
+  replay.stop();
+  celebrate();
+  updateScreen();
+}
+
 function playEvents(events) {
   const soccer = engine.state.settings.game === 'soccer';
   if (pendingEvents.length) { events = [...pendingEvents, ...events]; pendingEvents = []; }
-  renderer.handleEvents(events, engine.state);
+  // The winning goal's effects (GOAL!, flash) are saved for the slow-motion replay.
+  const won = events.some((e) => e.type === 'win');
+  renderer.handleEvents(won ? events.filter((e) => e.type !== 'point') : events, engine.state);
   for (const ev of events) {
     if (ev.type === 'hit') (soccer ? sounds.kick : sounds.paddle)(ev.power);
     else if (ev.type === 'wall') (soccer ? sounds.thud : sounds.wall)();
@@ -361,17 +405,47 @@ function playEvents(events) {
       if (soccer) sounds.whistle(); else sounds.point();
       if (!events.some((e) => e.type === 'win')) setTimeout(sounds.cheer, 250);
     } else if (ev.type === 'win') {
-      setTimeout(sounds.win, 300);
-      confetti();
+      // Show the winning shot again in slow motion first (if we caught it).
+      if (!replay.start()) celebrate();
     }
   }
+}
+
+// Keep the last few seconds of each rally, so the winning shot can be replayed.
+function recordForReplay(time, events) {
+  const s = engine.state;
+  const scored = events.some((e) => e.type === 'point');
+  if (s.phase === PHASE.PLAYING || scored) replay.record(time, s, events);
+  if (scored && s.phase !== PHASE.OVER) replay.clear(); // not the winner: start afresh next rally
+  if (!engine.inMatch && s.phase !== PHASE.OVER) replay.clear();
 }
 
 let last = performance.now();
 function frame(now) {
   const dt = Math.min((now - last) / 1000, 0.1);
   last = now;
-  if (started) playEvents(engine.step(dt));
+  if (replay.playing) {
+    // Slow-motion replay: draw recorded frames (the live game is over and waiting).
+    const out = replay.advance(dt);
+    if (out) {
+      const shown = { ...engine.state, phase: PHASE.PLAYING, kickoff: null, toss: null, ...out.frame };
+      renderer.handleEvents(out.events, shown);
+      renderer.draw(shown, dt * replay.speed);
+    } else {
+      finishReplay();
+      renderer.draw(engine.state, dt);
+    }
+    updateScreen();
+    syncPhones();
+    updateStats(now);
+    requestAnimationFrame(frame);
+    return;
+  }
+  if (started) {
+    const events = engine.step(dt);
+    recordForReplay(now / 1000, events);
+    playEvents(events);
+  }
   updateScreen();
   syncPhones();
   renderer.draw(engine.state, dt);
