@@ -544,8 +544,13 @@ export class Renderer {
 
   /** Short name for a side, as printed on the coin. */
   sideLabel(state, side) {
-    if (state.settings.mode === 'team') return side === 'left' ? 'TEAM' : 'CPU';
-    return side === 'left' ? 'P1' : 'P2';
+    const avatar = (slot) => this.profiles?.[slot]?.avatar || `P${slot}`;
+    if (state.settings.mode === 'team') {
+      if (side === 'right') return '🤖';
+      const kids = [...new Set(state.paddles.filter((p) => p.slot).map((p) => p.slot))];
+      return kids.map(avatar).join('');
+    }
+    return avatar(side === 'left' ? 1 : 2);
   }
 
   // Coin toss: the coin flips up in the air and lands showing the winner.
@@ -570,11 +575,14 @@ export class Renderer {
     ctx.arc(0, 0, r, 0, TAU);
     ctx.fill();
     ctx.stroke();
+    // The winner's avatar on the coin face (two small ones for a team of two kids).
+    const text = this.sideLabel(state, side);
+    const size = Array.from(text).length > 1 ? 50 : 84;
     ctx.fillStyle = color;
-    ctx.font = `700 46px ${FONT}`;
+    ctx.font = `700 ${size}px ${FONT}, "Apple Color Emoji", "Noto Color Emoji", sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(this.sideLabel(state, side), 0, 2);
+    ctx.fillText(text, 0, 6);
     ctx.restore();
   }
 

@@ -395,3 +395,13 @@ test('soccer: attackers can pass back; defenders clear forward and never score o
   assert.ok(events.some((x) => x.type === 'hit' && x.paddle === 'left-def'));
   assert.ok(e.state.ball.vx > 0);
 });
+
+test('player names are tidied up and fall back to "Player N"', async () => {
+  const { cleanProfile, playerLabel } = await import('../shared/profile.js');
+  assert.deepEqual(cleanProfile({ name: '  Mia  ', avatar: '🐯' }, 1), { name: 'Mia', avatar: '🐯' });
+  assert.deepEqual(cleanProfile({ name: '', avatar: 'x' }, 2), { name: 'Player 2', avatar: '🐼' });
+  assert.equal(cleanProfile({ name: 'Bartholomew-the-Great' }, 1).name, 'Bartholomew-');
+  assert.equal(cleanProfile({ name: 'a\u0007b' }, 1).name, 'ab');
+  assert.equal(playerLabel({ 1: { name: 'Leo', avatar: '🦁' } }, 1), '🦁 Leo');
+  assert.equal(playerLabel({}, 2), '🐼 Player 2');
+});

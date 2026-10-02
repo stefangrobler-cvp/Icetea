@@ -7,7 +7,8 @@ controllers. Nothing to install: it all runs in the web browser.
 
 1. **Tablet:** open the game's web address, turn the tablet sideways, tap **Tap to start**.
 2. **Phones:** open the Camera app, point it at the QR code on the tablet, tap the link.
-   The first phone is Player 1 (blue), the second is Player 2 (pink).
+   Type your name and tap an animal avatar, then **Let's go!** (the phone remembers it;
+   tap your avatar at the top of the menu to change it). The first phone is blue, the second pink.
 3. Pick the game (**🏓 Ping Pong** or **⚽ Soccer**), then **1 v 1** or **Team v CPU**,
    then **Easy / Medium / Hard**, on the tablet or any phone.
 4. Press **START**. Swipe up and down on the phone to move your paddle.
@@ -30,11 +31,12 @@ Score by getting the ball into the other team's goal; every other wall bounces i
   Use one thumb on each.
 - **Team v CPU with two kids:** one kid plays defence, the other attack, one swipe area each.
   With one kid, they get both rods. A kid who joins mid-match joins the team straight away.
-- **Rods:** 4 players at the back, 3 up front. Neighbouring players' reach overlaps, so
-  there is no spot on the pitch a rod can't cover, at any level.
-- **Your players only kick forward:** a ball heading towards the other team passes through
-  your own players, so you can't block your own shot or score an own goal.
-- **Kick-off:** a coin toss picks who kicks off first; after a goal, the team that let it in
+- **Rods:** 3 players on each. Neighbouring players' reach overlaps, so there is no spot
+  on the pitch a rod can't cover, at any level.
+- **Passing:** attackers play the ball both ways, so they can pass back to their defence.
+  Defenders only clear forward, and a ball behind them can't be knocked into their own net.
+  A clearance or kick-off by your own team flies past your own attackers.
+- **Kick-off:** a coin toss (showing the players' avatars) picks who kicks off first; after a goal, the team that let it in
   kicks off. The kicker's phone shows a circle: touch it, slide round to aim (the arrow also
   shows on the tablet), and let go to kick. After 12 seconds it kicks by itself.
 - **Pause menu** (either phone or the tablet): ▶ resume, change the level on the fly

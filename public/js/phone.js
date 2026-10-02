@@ -1,8 +1,9 @@
 // The phone controller. Swipe up/down to move your paddle.
 
-import { COLORS } from '/shared/config.js';
+import { COLORS, AVATARS } from '/shared/config.js';
 import { MSG, ACTIONS } from '/shared/protocol.js';
 import { clampKickAngle } from '/shared/physics.js';
+import { cleanProfile, playerLabel, defaultAvatar } from '/shared/profile.js';
 import { Connection, keepScreenOn } from './net.js';
 import { PhoneLink } from './direct.js';
 
@@ -24,6 +25,12 @@ let problem = roomCode ? null : 'noroom';
 let matchId = null;
 let rtt = null; // last measured delay to the game screen and back, in ms
 
+// Name and avatar: remembered on this phone. Asked once per game (room) when joining.
+let profile = null;
+try { profile = JSON.parse(localStorage.getItem('neonpong.profile')); } catch { /* none yet */ }
+let profileConfirmed = sessionStorage.getItem('neonpong.profileRoom') === roomCode;
+let editingProfile = false;
+
 // ---------- connection ----------
 
 const conn = new Connection({
@@ -42,6 +49,7 @@ const conn = new Connection({
         slot = msg.slot;
         problem = null;
         sendAll(true);
+        sendProfile();
         if (!link.open) link.start();
         break;
       case MSG.SIGNAL:
@@ -55,7 +63,7 @@ const conn = new Connection({
         break;
       case MSG.HOST_STATUS:
         // The game screen came back (e.g. it was reloaded): set up a fresh direct link.
-        if (msg.online && !hostOnline && slot) link.start();
+        if (msg.online && !hostOnline && slot) { link.start(); sendProfile(); }
         hostOnline = msg.online;
         break;
       case MSG.STATE:
@@ -73,6 +81,56 @@ const conn = new Connection({
 function command(action, extra = {}) {
   conn.send({ t: MSG.COMMAND, action, ...extra });
 }
+
+// ---------- who are you? ----------
+
+function sendProfile() {
+  if (profileConfirmed && profile && slot) command(ACTIONS.PROFILE, profile);
+}
+
+/** Display name for any player: "You", or "🦊 Mia". */
+function nameOf(s) {
+  return playerLabel(state?.profiles, s);
+}
+
+let pickedAvatar = null;
+function openProfile() {
+  editingProfile = true;
+  $('name').value = profile?.name || '';
+  pickedAvatar = profile?.avatar || defaultAvatar(slot || 1);
+  const grid = $('avatars');
+  if (!grid.children.length) {
+    for (const a of AVATARS) {
+      const b = document.createElement('button');
+      b.textContent = a;
+      b.dataset.avatar = a;
+      b.addEventListener('click', () => { pickedAvatar = a; markAvatar(); });
+      grid.appendChild(b);
+    }
+  }
+  markAvatar();
+  render();
+}
+
+function markAvatar() {
+  for (const b of $('avatars').children) b.classList.toggle('selected', b.dataset.avatar === pickedAvatar);
+}
+
+$('profile-done').addEventListener('click', () => {
+  const tidy = cleanProfile({ name: $('name').value, avatar: pickedAvatar }, slot || 1);
+  // Keep an empty name empty (so it shows as "Player 1" or "Player 2", whichever slot we get).
+  profile = { name: $('name').value.trim() ? tidy.name : '', avatar: tidy.avatar };
+  localStorage.setItem('neonpong.profile', JSON.stringify(profile));
+  sessionStorage.setItem('neonpong.profileRoom', roomCode);
+  profileConfirmed = true;
+  editingProfile = false;
+  $('name').blur();
+  sendProfile();
+  render();
+});
+$('name').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('name').blur(); });
+// Tap your avatar in the lobby to change it.
+$('badge').addEventListener('click', () => { if (state?.phase === 'lobby' && slot) openProfile(); });
 
 // Direct link to the tablet over Wi-Fi, for paddle movement.
 const link = new PhoneLink({
@@ -290,7 +348,7 @@ const show = (id, on) => $(id).classList.toggle('hidden', !on);
 function render() {
   const myColor = COLORS[slot] || COLORS.ball;
   document.body.style.setProperty('--me', myColor);
-  $('badge').textContent = slot ? `P${slot}` : '…';
+  $('badge').textContent = slot ? (profile?.avatar || defaultAvatar(slot)) : '…';
 
   // Problems first
   let status = null;
@@ -300,9 +358,19 @@ function render() {
   else if (!hostOnline) status = 'Waiting for the game screen…';
   else if (!state) status = 'Connecting…';
   show('status', Boolean(status));
+  const screens = ['lobby', 'message', 'paused', 'over', 'zones', 'score', 'pause', 'kick'];
   if (status) {
     $('status-text').textContent = status;
-    ['lobby', 'message', 'paused', 'over', 'zones', 'score', 'pause'].forEach((id) => show(id, false));
+    show('profile', false);
+    screens.forEach((id) => show(id, false));
+    return;
+  }
+
+  // First time in this game: who are you? (also when tapping your avatar in the lobby)
+  if (!profileConfirmed && !editingProfile) openProfile();
+  show('profile', editingProfile);
+  if (editingProfile) {
+    screens.forEach((id) => show(id, false));
     return;
   }
 
@@ -321,7 +389,7 @@ function render() {
   // Lobby
   show('lobby', phase === 'lobby');
   if (phase === 'lobby') {
-    $('you-are').textContent = `You are Player ${slot}`;
+    $('you-are').textContent = profile?.name ? `Hi ${profile.name}!` : `You are Player ${slot}`;
     $('start').disabled = !state.canStart;
     $('start-hint').textContent = state.canStart ? '' : 'Waiting for a friend to join…';
   }
@@ -363,18 +431,18 @@ function render() {
   else if (phase === 'countdown') big = String(state.countdown);
   else if (phase === 'toss') {
     big = '🪙';
-    const who = (side) => (state.settings.mode === 'team' ? (side === 'left' ? 'Your team' : 'Computer')
-      : side === mySide ? 'You' : `Player ${side === 'left' ? 1 : 2}`);
+    const who = (side) => (state.settings.mode === 'team' ? (side === 'left' ? 'Your team' : '🤖 Computer')
+      : side === mySide ? 'You' : nameOf(side === 'left' ? 1 : 2));
     const name = who(state.toss.winner);
     const soccer = state.settings.game === 'soccer';
     const verb = name === 'You' ? (soccer ? 'kick off' : 'serve first') : (soccer ? 'kicks off' : 'serves first');
     small = state.toss.done ? `${name} ${verb}!` : 'Coin toss…';
   } else if (phase === 'kickoff' && !myKick) {
-    small = k.slot === null ? '🤖 Computer kicks off…' : `⚽ Player ${k.slot} kicks off`;
+    small = k.slot === null ? '🤖 Computer kicks off…' : `⚽ ${nameOf(k.slot)} kicks off`;
   }
   else if (phase === 'waiting') {
     big = '⏳';
-    small = `Waiting for ${state.missing.map((s) => `Player ${s}`).join(' and ')}`;
+    small = `Waiting for ${state.missing.map((s) => nameOf(s)).join(' and ')}`;
   }
   show('message', Boolean(big || small));
   $('message-big').textContent = big;
@@ -391,7 +459,7 @@ function render() {
     } else if (mySide && state.winner === mySide) {
       text = 'YOU WIN!';
     } else {
-      text = `Player ${state.winner === 'left' ? 1 : 2} wins!`;
+      text = `${nameOf(state.winner === 'left' ? 1 : 2)} wins!`;
       icon = '👏';
     }
     $('over-icon').textContent = icon;

@@ -445,3 +445,35 @@ body[data-game='soccer'] .zone {
 .huge-btn { width: 190px; height: 190px; border-radius: 50%; font-size: 70px; padding: 0; }
 .stack { display: flex; flex-direction: column; gap: 14px; width: 100%; max-width: 420px; }
 .stack button { font-size: 22px; padding: 22px; }
+
+/* Who are you? (phone) */
+.name-input {
+  width: min(86vw, 400px);
+  font-family: var(--font);
+  font-size: 28px; /* 16px or more stops iPhones zooming in */
+  font-weight: 600;
+  text-align: center;
+  color: var(--text);
+  background: var(--card);
+  border: 3px solid var(--me);
+  border-radius: 20px;
+  padding: 14px;
+  outline: none;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.avatar-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  width: min(86vw, 400px);
+}
+.avatar-grid button {
+  font-size: 40px;
+  padding: 10px 0;
+  border-radius: 20px;
+  line-height: 1.1;
+}
+.avatar-grid button.selected { background: var(--me); box-shadow: 0 0 22px var(--me); }
+.me-badge { font-size: 32px; cursor: pointer; }
+.chip-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

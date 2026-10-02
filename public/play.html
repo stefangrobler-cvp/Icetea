@@ -29,9 +29,19 @@
     <p id="status-text" class="medium pulse">Connecting…</p>
   </section>
 
+  <!-- Who are you? Name and avatar, asked when the phone joins (remembered for next time) -->
+  <section id="profile" class="overlay solid hidden">
+    <p class="medium neon" style="color: var(--me)">Who are you?</p>
+    <input id="name" class="name-input" type="text" maxlength="12" autocomplete="off"
+           autocapitalize="words" spellcheck="false" placeholder="Your name" enterkeyhint="done">
+    <div id="avatars" class="avatar-grid"></div>
+    <button id="profile-done" class="go start-btn">Let's go!</button>
+  </section>
+
   <!-- Lobby: choose mode & difficulty, start -->
   <section id="lobby" class="overlay hidden">
     <p id="you-are" class="medium neon" style="color: var(--me)">You!</p>
+    <p class="small">Tap your picture at the top to change it</p>
     <div class="settings">
       <div class="row game-cards" data-setting="game">
         <button data-value="classic"><span class="icon">🏓</span>Ping Pong</button>

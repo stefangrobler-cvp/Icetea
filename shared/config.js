@@ -120,4 +120,8 @@ export const COLORS = {
   background: '#05010f',
 };
 
+// Avatars a kid can pick when joining with their phone.
+export const AVATARS = ['🦊', '🐼', '🐯', '🐸', '🦄', '🐵', '🐶', '🐱', '🦁', '🐨', '🐰', '🐙'];
+export const NAME_MAX = 12; // letters
+
 export const DEFAULT_SETTINGS = { game: 'classic', mode: 'versus', difficulty: 'easy' };

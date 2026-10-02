@@ -4,6 +4,7 @@
 import { Engine, PHASE } from '/shared/engine.js';
 import { MODES, COLORS } from '/shared/config.js';
 import { MSG, ACTIONS } from '/shared/protocol.js';
+import { cleanProfile, playerLabel } from '/shared/profile.js';
 import { Connection, keepScreenOn } from './net.js';
 import { HostLinks } from './direct.js';
 import { Renderer } from './renderer.js';
@@ -17,6 +18,9 @@ window.neonPong = { engine }; // handy for testing from the browser console
 const players = { 1: false, 2: false }; // which phones are connected
 const lastSeq = {}; // newest paddle message seen from each phone, per rod ("slot:lane")
 const lag = { 1: null, 2: null }; // { rtt, direct } as reported by each phone
+const profiles = { 1: cleanProfile(null, 1), 2: cleanProfile(null, 2) }; // names and avatars
+const label = (slot) => playerLabel(profiles, slot); // "🦊 Mia"
+renderer.profiles = profiles; // the coin toss shows the avatars
 let room = null;
 let started = false; // has someone tapped "Tap to start"?
 
@@ -102,6 +106,9 @@ let pendingEvents = []; // events from phone actions (e.g. a kick), played on th
 
 function handleAction(action, data = {}) {
   switch (action) {
+    case ACTIONS.PROFILE:
+      if (data.slot === 1 || data.slot === 2) profiles[data.slot] = cleanProfile(data, data.slot);
+      break;
     case ACTIONS.AIM:
       engine.aimKickoff(data.slot, Number(data.angle));
       return; // nothing on screen changes apart from the arrow
@@ -170,7 +177,7 @@ function confirmTap(btn, askText, action) {
 /** "Player 1", "Team", "Computer"... */
 function sideName(side) {
   if (engine.state.settings.mode === 'team') return side === 'left' ? 'Team' : 'Computer';
-  return side === 'left' ? 'Player 1' : 'Player 2';
+  return label(side === 'left' ? 1 : 2);
 }
 
 function sideColor(side) {
@@ -186,6 +193,7 @@ function phoneState() {
     t: MSG.STATE,
     ...s,
     players: { ...players },
+    profiles: { ...profiles },
     canStart: engine.canStart(connectedSlots()),
     needPlayers: mode.humans,
   };
@@ -207,7 +215,7 @@ function updateScreen() {
   const s = engine.state;
   const celebrating = Boolean(renderer.banner); // "GOAL!" is on screen
   const k = s.kickoff;
-  const view = JSON.stringify([started, s.phase, s.settings, players, lag, s.missing, s.winner, celebrating,
+  const view = JSON.stringify([started, s.phase, s.settings, players, lag, profiles, s.missing, s.winner, celebrating,
     s.phase === PHASE.TOSS && s.toss.timeLeft < 0.6, k && [k.side, k.slot, k.wait > 0],
     s.phase === PHASE.COUNTDOWN ? Math.ceil(s.countdown) : 0]);
   if (view === lastView) return;
@@ -224,6 +232,7 @@ function updateScreen() {
   for (const slot of [1, 2]) {
     const chip = $(`chip-${slot}`);
     chip.classList.toggle('on', players[slot]);
+    chip.querySelector('.chip-name').textContent = players[slot] ? label(slot) : `P${slot}`;
     chip.querySelector('small').textContent = players[slot] ? `Ready! ${lagText(slot)}` : 'Waiting…';
   }
   document.querySelectorAll('[data-setting]').forEach((row) => {
@@ -257,8 +266,8 @@ function updateScreen() {
     hint.classList.remove('hidden');
     hint.style.color = k.slot ? COLORS[k.slot] : COLORS.cpu;
     hint.textContent = k.slot === null ? '🤖 Computer kicks off…'
-      : k.wait > 0 ? `Player ${k.slot} kicks off`
-        : `Player ${k.slot}: aim on your phone and let go! ⚽`;
+      : k.wait > 0 ? `${label(k.slot)} kicks off`
+        : `${label(k.slot)}: aim on your phone and let go! ⚽`;
   }
   if (s.phase === PHASE.COUNTDOWN && !celebrating) {
     msg.classList.remove('hidden');
@@ -276,7 +285,7 @@ function updateScreen() {
   } else if (s.phase === PHASE.WAITING) {
     msg.classList.remove('hidden');
     msg.classList.add('dim');
-    const who = s.missing.map((slot) => `Player ${slot}`).join(' and ');
+    const who = s.missing.map((slot) => label(slot)).join(' and ');
     $('message-big').textContent = 'WAITING';
     $('message-big').style.color = COLORS[s.missing[0]] || COLORS.cpu;
     $('message-small').textContent = `Waiting for ${who}…`;
@@ -287,9 +296,10 @@ function updateScreen() {
   // Winner
   if (s.phase === PHASE.OVER) {
     const team = s.settings.mode === 'team';
+    const kids = [...new Set(s.paddles.filter((p) => p.slot).map((p) => p.slot))];
     const text = team
-      ? (s.winner === 'left' ? 'TEAM WINS!' : 'COMPUTER WINS!')
-      : `PLAYER ${s.winner === 'left' ? 1 : 2} WINS!`;
+      ? (s.winner === 'left' ? `${kids.map((k) => profiles[k].avatar).join('')} TEAM WINS!` : '🤖 COMPUTER WINS!')
+      : `${label(s.winner === 'left' ? 1 : 2)} wins!`;
     $('winner-text').textContent = text;
     $('winner-text').style.color = team
       ? (s.winner === 'left' ? COLORS[1] : COLORS.cpu)
