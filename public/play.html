@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#05010f">
+  <title>Neon Pong controller</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="phone">
+  <!-- Swipe area: always underneath, active during a match -->
+  <div id="swipe" class="swipe hidden">
+    <div class="arrow">▲</div>
+    <div class="paddle-preview"></div>
+    <div class="arrow">▼</div>
+  </div>
+
+  <!-- Top bar: my colour, the score, pause -->
+  <div class="phone-top">
+    <div id="badge" class="me-badge">P?</div>
+    <div id="score" class="phone-score hidden">
+      <span id="score-left" class="neon">0</span><span>:</span><span id="score-right" class="neon">0</span>
+    </div>
+    <button id="pause" class="pause-btn hidden" aria-label="Pause">❚❚</button>
+  </div>
+
+  <!-- Connecting / errors -->
+  <section id="status" class="overlay solid">
+    <p class="title neon">NEON PONG</p>
+    <p id="status-text" class="medium pulse">Connecting…</p>
+  </section>
+
+  <!-- Lobby: choose mode & difficulty, start -->
+  <section id="lobby" class="overlay hidden">
+    <p id="you-are" class="medium neon" style="color: var(--me)">You!</p>
+    <div class="settings">
+      <div class="row" data-setting="mode">
+        <button data-value="versus"><span class="icon">🧒⚡🧒</span>1 v 1</button>
+        <button data-value="team"><span class="icon">🧒🧒⚡🤖</span>Team</button>
+      </div>
+      <div class="row" data-setting="difficulty">
+        <button data-value="easy"><span class="icon">🐢</span>Easy</button>
+        <button data-value="medium"><span class="icon">🐇</span>Medium</button>
+        <button data-value="hard"><span class="icon">🚀</span>Hard</button>
+      </div>
+    </div>
+    <button id="start" class="go start-btn">START</button>
+    <p id="start-hint" class="small"></p>
+  </section>
+
+  <!-- Messages during a match -->
+  <section id="message" class="overlay hidden" style="pointer-events: none">
+    <p id="message-big" class="big neon"></p>
+    <p id="message-small" class="medium"></p>
+  </section>
+
+  <!-- Paused -->
+  <section id="paused" class="overlay dim hidden">
+    <p class="medium neon" style="color: var(--cpu)">PAUSED</p>
+    <button id="resume" class="go huge-btn" aria-label="Resume">▶</button>
+  </section>
+
+  <!-- Game over -->
+  <section id="over" class="overlay dim hidden">
+    <p id="over-icon" class="big">🏆</p>
+    <p id="over-text" class="medium neon"></p>
+    <div class="stack">
+      <button id="again" class="go">Play again</button>
+      <button id="change">Change settings</button>
+    </div>
+  </section>
+
+  <script type="module" src="/js/phone.js"></script>
+</body>
+</html>
