@@ -29,14 +29,23 @@ Score by getting the ball into the other team's goal; every other wall bounces i
   (🛡️ Defend and ⚽ Attack, in the same left/right order as on the tablet).
   Use one thumb on each.
 - **Team v CPU with two kids:** one kid plays defence, the other attack, one swipe area each.
-  With one kid, they get both rods.
+  With one kid, they get both rods. A kid who joins mid-match joins the team straight away.
+- **Rods:** 4 players at the back, 3 up front. Neighbouring players' reach overlaps, so
+  there is no spot on the pitch a rod can't cover, at any level.
+- **Your players only kick forward:** a ball heading towards the other team passes through
+  your own players, so you can't block your own shot or score an own goal.
+- **Kick-off:** a coin toss picks who kicks off first; after a goal, the team that let it in
+  kicks off. The kicker's phone shows a circle: touch it, slide round to aim (the arrow also
+  shows on the tablet), and let go to kick. After 12 seconds it kicks by itself.
+- **Pause menu** (either phone or the tablet): ▶ resume, change the level on the fly
+  (🐢 🐇 🚀), or 🏠 Main menu (tap twice) to pick a different game.
 
 If a phone locks or loses Wi-Fi, the game pauses and shows *Waiting for player*.
 Unlock the phone (or scan the code again) and the game carries on.
 
 | | Paddles | Ball | Computer (team mode) |
 |---|---|---|---|
-| Easy | big | slow | slow, often guesses wrong |
+| Easy | big | slow | slow, often guesses wrong (soccer: bigger goals too) |
 | Medium | medium | faster | decent |
 | Hard | small | fast | sharp, rarely misses |
 

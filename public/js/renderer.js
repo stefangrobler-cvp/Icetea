@@ -1,7 +1,7 @@
 // Draws the game on a <canvas>. Only reads engine state, never changes it.
 // Effects (bounces, ripples, wobbling paddles) are driven by the engine's events.
 
-import { COURT, BALL, COLORS, SOCCER } from '/shared/config.js';
+import { COURT, BALL, COLORS, SOCCER, TOSS_SECONDS, KICKOFF } from '/shared/config.js';
 import { goalHeight } from '/shared/games/soccer.js';
 
 // Older iPads (before iOS 16) can't draw rounded rectangles natively.
@@ -154,7 +154,9 @@ export class Renderer {
     }
 
     this.drawRipples();
+    if (state.kickoff) this.drawKickoff(state);
     this.drawBall(state, dt, soccer);
+    if (state.phase === 'toss') this.drawToss(state);
     this.drawBanner();
 
     if (this.flash > 0) {
@@ -538,6 +540,88 @@ export class Renderer {
       pent(Math.cos(a) * r * 1.02, Math.sin(a) * r * 1.02, r * 0.32);
     }
     ctx.restore();
+  }
+
+  /** Short name for a side, as printed on the coin. */
+  sideLabel(state, side) {
+    if (state.settings.mode === 'team') return side === 'left' ? 'TEAM' : 'CPU';
+    return side === 'left' ? 'P1' : 'P2';
+  }
+
+  // Coin toss: the coin flips up in the air and lands showing the winner.
+  drawToss(state) {
+    const { ctx } = this;
+    const p = Math.min(1, 1 - state.toss.timeLeft / (TOSS_SECONDS - 0.6)); // lands with 0.6 s to spare
+    const flips = state.toss.winner === 'left' ? 10 : 11; // an even number of half-turns lands on the left face
+    const ease = 1 - (1 - p) ** 3;
+    const angle = ease * flips * Math.PI;
+    const squeeze = Math.cos(angle);
+    const side = squeeze >= 0 ? 'left' : 'right';
+    const color = this.sideColor(state, side);
+    const lift = Math.sin(Math.min(1, p) * Math.PI) * 170;
+    const r = 78;
+    ctx.save();
+    ctx.translate(COURT.width / 2, COURT.height / 2 - lift);
+    ctx.scale(Math.max(0.04, Math.abs(squeeze)), 1);
+    ctx.fillStyle = '#0b0820';
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 10;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, TAU);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.font = `700 46px ${FONT}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(this.sideLabel(state, side), 0, 2);
+    ctx.restore();
+  }
+
+  // Soccer kick-off: a pulsing ring round the ball, the kicker's aim arrow,
+  // and a ring that runs down until the ball is kicked automatically.
+  drawKickoff(state) {
+    const { ctx } = this;
+    const k = state.kickoff;
+    const color = k.slot ? COLORS[k.slot] : COLORS.cpu; // the kicker's own colour
+    const { x, y } = state.ball;
+    const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 160);
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = 0.35 + 0.4 * pulse;
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.arc(x, y, 34 + pulse * 6, 0, TAU);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    if (k.wait > 0) return;
+    if (k.slot !== null) {
+      ctx.lineWidth = 6;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+      ctx.beginPath();
+      ctx.arc(x, y, 50, -Math.PI / 2, -Math.PI / 2 + TAU * (k.timeLeft / KICKOFF.timeLimit));
+      ctx.stroke();
+    }
+    // Aim arrow
+    const len = 190;
+    const ex = x + Math.cos(k.aim) * len;
+    const ey = y + Math.sin(k.aim) * len;
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = 10;
+    ctx.lineCap = 'round';
+    ctx.setLineDash([4, 22]);
+    ctx.beginPath();
+    ctx.moveTo(x + Math.cos(k.aim) * 40, y + Math.sin(k.aim) * 40);
+    ctx.lineTo(ex, ey);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(ex + Math.cos(k.aim) * 26, ey + Math.sin(k.aim) * 26);
+    ctx.lineTo(ex + Math.cos(k.aim + 2.4) * 22, ey + Math.sin(k.aim + 2.4) * 22);
+    ctx.lineTo(ex + Math.cos(k.aim - 2.4) * 22, ey + Math.sin(k.aim - 2.4) * 22);
+    ctx.closePath();
+    ctx.fill();
   }
 
   drawBanner() {

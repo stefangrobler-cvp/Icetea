@@ -15,7 +15,7 @@ import {
   KICKOFF, DEFAULT_SETTINGS, PADDLE_GLIDE_SPEED, LANE,
 } from './config.js';
 import { ComputerPlayer } from './ai.js';
-import { applySpin, clamp, limitAngle } from './physics.js';
+import { applySpin, clamp, clampKickAngle } from './physics.js';
 import { classic } from './games/classic.js';
 import { soccer } from './games/soccer.js';
 
@@ -319,9 +319,7 @@ export class Engine {
 
   // Kicks can go any way except too steeply up or down.
   clampKick(angle, side) {
-    const b = { vx: Math.cos(angle), vy: Math.sin(angle) };
-    limitAngle(b, 1, side === 'left' ? 1 : -1);
-    return Math.atan2(b.vy, b.vx);
+    return clampKickAngle(angle, side === 'left' ? 1 : -1);
   }
 
   launch(events) {

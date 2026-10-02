@@ -57,10 +57,29 @@
     <p id="message-small" class="medium"></p>
   </section>
 
-  <!-- Paused -->
+  <!-- Paused: carry on, change the level, or go back to the main menu -->
   <section id="paused" class="overlay dim hidden">
     <p class="medium neon" style="color: var(--cpu)">PAUSED</p>
     <button id="resume" class="go huge-btn" aria-label="Resume">▶</button>
+    <div class="settings">
+      <div class="row" data-setting="difficulty">
+        <button data-value="easy"><span class="icon">🐢</span>Easy</button>
+        <button data-value="medium"><span class="icon">🐇</span>Medium</button>
+        <button data-value="hard"><span class="icon">🚀</span>Hard</button>
+      </div>
+    </div>
+    <button id="menu" class="menu-btn">🏠 Main menu</button>
+  </section>
+
+  <!-- Soccer kick-off: touch the circle, slide round to aim, let go to kick -->
+  <section id="kick" class="overlay hidden">
+    <p id="kick-title" class="medium neon" style="color: var(--me)">Your kick-off!</p>
+    <div id="dial" class="dial">
+      <div id="goal-mark" class="goal-mark right">🥅</div>
+      <div id="dial-arrow" class="dial-arrow hidden"></div>
+      <div class="dial-ball">⚽</div>
+    </div>
+    <p id="kick-hint" class="small">Touch the circle, slide round to aim, let go to kick!</p>
   </section>
 
   <!-- Game over -->

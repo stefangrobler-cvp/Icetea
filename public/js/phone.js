@@ -2,6 +2,7 @@
 
 import { COLORS } from '/shared/config.js';
 import { MSG, ACTIONS } from '/shared/protocol.js';
+import { clampKickAngle } from '/shared/physics.js';
 import { Connection, keepScreenOn } from './net.js';
 import { PhoneLink } from './direct.js';
 
@@ -211,6 +212,69 @@ $('resume').addEventListener('click', () => command(ACTIONS.RESUME));
 $('again').addEventListener('click', () => { keepScreenOn(); command(ACTIONS.PLAY_AGAIN); });
 $('change').addEventListener('click', () => command(ACTIONS.CHANGE_SETTINGS));
 
+// "Main menu" needs two taps, so a stray tap doesn't end the match.
+{
+  const btn = $('menu');
+  const label = btn.textContent;
+  let timer = null;
+  const reset = () => { clearTimeout(timer); timer = null; btn.textContent = label; btn.classList.remove('confirm'); };
+  btn.addEventListener('click', () => {
+    if (timer) { reset(); command(ACTIONS.MENU); return; }
+    btn.textContent = 'Tap again to leave';
+    btn.classList.add('confirm');
+    timer = setTimeout(reset, 3000);
+  });
+}
+
+// ---------- soccer kick-off: aim on the circle, let go to kick ----------
+
+let aiming = false;
+let aimAngle = 0;
+let lastAimSent = 0;
+
+function forwardX() {
+  return state?.kickoff?.side === 'right' ? -1 : 1;
+}
+
+function aimAt(clientX, clientY) {
+  const dial = $('dial');
+  const box = dial.getBoundingClientRect();
+  const dx = clientX - (box.left + box.width / 2);
+  const dy = clientY - (box.top + box.height / 2);
+  // Ignore touches right in the middle: no clear direction yet.
+  if (Math.hypot(dx, dy) < box.width * 0.12) return;
+  aiming = true;
+  aimAngle = clampKickAngle(Math.atan2(dy, dx), forwardX());
+  const arrow = $('dial-arrow');
+  arrow.classList.remove('hidden');
+  arrow.style.transform = `rotate(${aimAngle}rad)`;
+  // Show the aim on the tablet too (a few times a second is plenty).
+  const now = performance.now();
+  if (now - lastAimSent > 50) {
+    lastAimSent = now;
+    command(ACTIONS.AIM, { angle: aimAngle });
+  }
+}
+
+function letGo() {
+  if (!aiming) return;
+  aiming = false;
+  $('dial-arrow').classList.add('hidden');
+  if (state?.kickoff?.ready) command(ACTIONS.KICK, { angle: aimAngle });
+}
+
+{
+  const dial = $('dial');
+  dial.addEventListener('touchstart', (e) => { e.preventDefault(); const t = e.changedTouches[0]; aimAt(t.clientX, t.clientY); }, { passive: false });
+  dial.addEventListener('touchmove', (e) => { e.preventDefault(); const t = e.changedTouches[0]; aimAt(t.clientX, t.clientY); }, { passive: false });
+  dial.addEventListener('touchend', (e) => { e.preventDefault(); letGo(); });
+  dial.addEventListener('touchcancel', () => { aiming = false; $('dial-arrow').classList.add('hidden'); });
+  let down = false;
+  dial.addEventListener('mousedown', (e) => { down = true; aimAt(e.clientX, e.clientY); });
+  window.addEventListener('mousemove', (e) => { if (down) aimAt(e.clientX, e.clientY); });
+  window.addEventListener('mouseup', () => { if (down) { down = false; letGo(); } });
+}
+
 // Screen locked or switched app: tell the game straight away so it pauses,
 // then reconnect as soon as the phone is back.
 document.addEventListener('visibilitychange', () => {
@@ -245,17 +309,19 @@ function render() {
   const phase = state.phase;
   document.body.dataset.game = state.settings.game;
   const mySide = state.sides[slot]; // 'left' | 'right' | undefined (not in this match)
-  const inMatch = ['countdown', 'playing', 'paused', 'waiting'].includes(phase);
+  const inMatch = ['toss', 'countdown', 'kickoff', 'playing', 'paused', 'waiting'].includes(phase);
   const playing = inMatch && Boolean(mySide);
+
+  // Settings buttons (lobby and pause menu) show what's picked
+  document.querySelectorAll('[data-setting]').forEach((row) => {
+    const current = state.settings[row.dataset.setting];
+    row.querySelectorAll('button').forEach((b) => b.classList.toggle('selected', b.dataset.value === current));
+  });
 
   // Lobby
   show('lobby', phase === 'lobby');
   if (phase === 'lobby') {
     $('you-are').textContent = `You are Player ${slot}`;
-    document.querySelectorAll('[data-setting]').forEach((row) => {
-      const current = state.settings[row.dataset.setting];
-      row.querySelectorAll('button').forEach((b) => b.classList.toggle('selected', b.dataset.value === current));
-    });
     $('start').disabled = !state.canStart;
     $('start-hint').textContent = state.canStart ? '' : 'Waiting for a friend to join…';
   }
@@ -267,17 +333,45 @@ function render() {
   const team = state.settings.mode === 'team';
   $('score-left').style.color = team ? myColor : COLORS[1];
   $('score-right').style.color = team ? COLORS.cpu : COLORS[2];
-  const active = playing && (phase === 'countdown' || phase === 'playing');
+  const k = state.kickoff;
+  const myKick = phase === 'kickoff' && k && k.slot === slot;
+  const live = ['toss', 'countdown', 'kickoff', 'playing'].includes(phase);
   if (playing) buildZones(state.controls[slot] || [], state.settings.game);
-  show('zones', active);
-  show('pause', playing && (phase === 'countdown' || phase === 'playing'));
+  show('zones', playing && live && !myKick);
+  show('pause', playing && live);
   show('paused', playing && phase === 'paused');
+
+  // My kick-off: the aiming circle replaces the swipe areas until I kick.
+  show('kick', myKick);
+  if (myKick) {
+    const mark = $('goal-mark');
+    mark.className = `goal-mark ${k.side === 'left' ? 'right' : 'left'}`; // their goal
+    $('dial').classList.toggle('waiting', !k.ready);
+    $('kick-title').textContent = k.ready ? 'Your kick-off!' : 'Get ready…';
+    $('kick-hint').textContent = k.ready
+      ? `Touch the circle, slide round to aim, let go to kick! (${k.timeLeft})`
+      : 'Your turn to kick off in a moment';
+  } else if (aiming) {
+    aiming = false;
+    $('dial-arrow').classList.add('hidden');
+  }
 
   // Countdown / waiting / not in this match
   let big = '';
   let small = '';
   if (inMatch && !mySide) small = 'You can join the next game!';
   else if (phase === 'countdown') big = String(state.countdown);
+  else if (phase === 'toss') {
+    big = '🪙';
+    const who = (side) => (state.settings.mode === 'team' ? (side === 'left' ? 'Your team' : 'Computer')
+      : side === mySide ? 'You' : `Player ${side === 'left' ? 1 : 2}`);
+    const name = who(state.toss.winner);
+    const soccer = state.settings.game === 'soccer';
+    const verb = name === 'You' ? (soccer ? 'kick off' : 'serve first') : (soccer ? 'kicks off' : 'serves first');
+    small = state.toss.done ? `${name} ${verb}!` : 'Coin toss…';
+  } else if (phase === 'kickoff' && !myKick) {
+    small = k.slot === null ? '🤖 Computer kicks off…' : `⚽ Player ${k.slot} kicks off`;
+  }
   else if (phase === 'waiting') {
     big = '⏳';
     small = `Waiting for ${state.missing.map((s) => `Player ${s}`).join(' and ')}`;

@@ -69,8 +69,20 @@
     <p id="message-big" class="big neon"></p>
     <p id="message-small" class="medium"></p>
     <img id="message-qr" class="qr small-qr hidden" alt="QR code to rejoin">
-    <button id="resume" class="go hidden">▶ Resume</button>
+    <!-- Pause menu: carry on, change the level on the fly, or leave to the main menu -->
+    <div id="pause-menu" class="pause-menu hidden">
+      <button id="resume" class="go start-btn">▶ Resume</button>
+      <div class="row" data-setting="difficulty">
+        <button data-value="easy">🐢 Easy</button>
+        <button data-value="medium">🐇 Medium</button>
+        <button data-value="hard">🚀 Hard</button>
+      </div>
+    </div>
+    <button id="menu" class="menu-btn hidden">🏠 Main menu</button>
   </section>
+
+  <!-- Small message along the top: who kicks off, etc. -->
+  <div id="hint" class="hint hidden"></div>
 
   <!-- 4. Winner celebration -->
   <section id="winner" class="overlay dim hidden">

@@ -90,3 +90,13 @@ export function reflect(ball, nx, ny) {
   ball.vy -= 2 * dot * ny;
   return true;
 }
+
+/**
+ * Kick-off aim: any direction except too steeply up or down. `forwardX` (1 or -1)
+ * decides which way a straight up/down aim tips over.
+ */
+export function clampKickAngle(angle, forwardX) {
+  const b = { vx: Math.cos(angle), vy: Math.sin(angle) };
+  limitAngle(b, 1, forwardX);
+  return Math.atan2(b.vy, b.vx);
+}

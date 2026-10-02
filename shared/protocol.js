@@ -39,6 +39,9 @@ export const ACTIONS = {
   RESUME: 'resume',
   PLAY_AGAIN: 'playAgain',
   CHANGE_SETTINGS: 'changeSettings',
+  MENU: 'menu', // leave the match (from the pause screen) and go back to the main menu
+  AIM: 'aim', // { angle } soccer kick-off: where the kicker is aiming (radians, 0 = right)
+  KICK: 'kick', // { angle } soccer kick-off: let go of the ball
 };
 
 export const MAX_PLAYERS = 2;

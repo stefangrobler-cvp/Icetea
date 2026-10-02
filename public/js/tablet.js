@@ -90,14 +90,28 @@ function setPlayer(slot, connected) {
   if (!connected) { links.close(slot); lag[slot] = null; }
   players[slot] = Boolean(connected);
   engine.setPlayerConnected(slot, players[slot]);
+  // A kid who joins during a team-v-computer match joins the team straight away.
+  if (connected && engine.inMatch && !engine.isInMatch(slot)) engine.addPlayer(slot);
 }
 
 const connectedSlots = () => [1, 2].filter((s) => players[s]);
 
 // ---------- actions (from the tablet's own buttons or from a phone) ----------
 
+let pendingEvents = []; // events from phone actions (e.g. a kick), played on the next frame
+
 function handleAction(action, data = {}) {
   switch (action) {
+    case ACTIONS.AIM:
+      engine.aimKickoff(data.slot, Number(data.angle));
+      return; // nothing on screen changes apart from the arrow
+    case ACTIONS.KICK:
+      engine.kick(data.slot, Number(data.angle), pendingEvents);
+      break;
+    case ACTIONS.MENU:
+      // Leave the match: only from the pause / waiting screen or after a match.
+      if ([PHASE.PAUSED, PHASE.WAITING, PHASE.OVER].includes(engine.state.phase)) engine.backToLobby();
+      break;
     case ACTIONS.SETTINGS:
       engine.setSettings({ game: data.game, mode: data.mode, difficulty: data.difficulty });
       break;
@@ -138,6 +152,30 @@ $('again').addEventListener('click', () => handleAction(ACTIONS.PLAY_AGAIN));
 $('change').addEventListener('click', () => handleAction(ACTIONS.CHANGE_SETTINGS));
 $('pause').addEventListener('click', () => handleAction(ACTIONS.PAUSE));
 $('resume').addEventListener('click', () => handleAction(ACTIONS.RESUME));
+confirmTap($('menu'), 'Tap again to leave the game', () => handleAction(ACTIONS.MENU));
+
+/** A button that needs two taps (so a stray tap doesn't end the match). */
+function confirmTap(btn, askText, action) {
+  const label = btn.textContent;
+  let timer = null;
+  const reset = () => { clearTimeout(timer); timer = null; btn.textContent = label; btn.classList.remove('confirm'); };
+  btn.addEventListener('click', () => {
+    if (timer) { reset(); action(); return; }
+    btn.textContent = askText;
+    btn.classList.add('confirm');
+    timer = setTimeout(reset, 3000);
+  });
+}
+
+/** "Player 1", "Team", "Computer"... */
+function sideName(side) {
+  if (engine.state.settings.mode === 'team') return side === 'left' ? 'Team' : 'Computer';
+  return side === 'left' ? 'Player 1' : 'Player 2';
+}
+
+function sideColor(side) {
+  return engine.state.paddles.find((p) => p.side === side)?.color || COLORS.ball;
+}
 
 // ---------- what the phones need to know ----------
 
@@ -168,7 +206,9 @@ let lastView = '';
 function updateScreen() {
   const s = engine.state;
   const celebrating = Boolean(renderer.banner); // "GOAL!" is on screen
+  const k = s.kickoff;
   const view = JSON.stringify([started, s.phase, s.settings, players, lag, s.missing, s.winner, celebrating,
+    s.phase === PHASE.TOSS && s.toss.timeLeft < 0.6, k && [k.side, k.slot, k.wait > 0],
     s.phase === PHASE.COUNTDOWN ? Math.ceil(s.countdown) : 0]);
   if (view === lastView) return;
   lastView = view;
@@ -200,8 +240,26 @@ function updateScreen() {
   const msg = $('message');
   msg.classList.add('hidden');
   $('message-qr').classList.add('hidden');
-  $('resume').classList.add('hidden');
+  $('pause-menu').classList.add('hidden');
+  $('menu').classList.add('hidden');
   msg.classList.remove('dim');
+  const hint = $('hint');
+  hint.classList.add('hidden');
+  const soccer = s.settings.game === 'soccer';
+  if (s.phase === PHASE.TOSS) {
+    hint.classList.remove('hidden');
+    const landed = s.toss.timeLeft < 0.6;
+    hint.textContent = landed
+      ? `${sideName(s.toss.winner)} ${soccer ? 'kicks off' : 'serves first'}!`
+      : '🪙 Coin toss…';
+    hint.style.color = landed ? sideColor(s.toss.winner) : COLORS.ball;
+  } else if (s.phase === PHASE.KICKOFF && !celebrating) {
+    hint.classList.remove('hidden');
+    hint.style.color = k.slot ? COLORS[k.slot] : COLORS.cpu;
+    hint.textContent = k.slot === null ? '🤖 Computer kicks off…'
+      : k.wait > 0 ? `Player ${k.slot} kicks off`
+        : `Player ${k.slot}: aim on your phone and let go! ⚽`;
+  }
   if (s.phase === PHASE.COUNTDOWN && !celebrating) {
     msg.classList.remove('hidden');
     $('message-big').textContent = Math.ceil(s.countdown);
@@ -212,8 +270,9 @@ function updateScreen() {
     msg.classList.add('dim');
     $('message-big').textContent = 'PAUSED';
     $('message-big').style.color = COLORS.cpu;
-    $('message-small').textContent = 'Press ▶ on a phone to play';
-    $('resume').classList.remove('hidden');
+    $('message-small').textContent = '';
+    $('pause-menu').classList.remove('hidden');
+    $('menu').classList.remove('hidden');
   } else if (s.phase === PHASE.WAITING) {
     msg.classList.remove('hidden');
     msg.classList.add('dim');
@@ -222,6 +281,7 @@ function updateScreen() {
     $('message-big').style.color = COLORS[s.missing[0]] || COLORS.cpu;
     $('message-small').textContent = `Waiting for ${who}…`;
     $('message-qr').classList.remove('hidden');
+    $('menu').classList.remove('hidden');
   }
 
   // Winner
@@ -277,11 +337,14 @@ function confetti() {
 
 function playEvents(events) {
   const soccer = engine.state.settings.game === 'soccer';
+  if (pendingEvents.length) { events = [...pendingEvents, ...events]; pendingEvents = []; }
   renderer.handleEvents(events, engine.state);
   for (const ev of events) {
     if (ev.type === 'hit') (soccer ? sounds.kick : sounds.paddle)(ev.power);
     else if (ev.type === 'wall') (soccer ? sounds.thud : sounds.wall)();
     else if (ev.type === 'post') sounds.post();
+    else if (ev.type === 'toss') sounds.go();
+    else if (ev.type === 'kickoff') { sounds.whistle(); sounds.kick(0.6); }
     else if (ev.type === 'countdown') sounds.tick();
     else if (ev.type === 'serve') (soccer ? sounds.whistle : sounds.go)();
     else if (ev.type === 'point') {
