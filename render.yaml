@@ -1,0 +1,10 @@
+# Render "Blueprint": tells Render how to run Neon Pong.
+services:
+  - type: web
+    name: neon-pong
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /healthz
+    autoDeploy: true

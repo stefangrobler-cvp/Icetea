@@ -73,7 +73,7 @@ function sendPaddle(force = false) {
   conn.send(`{"t":"in","y":${y}}`);
   // Move the little paddle on the phone too, so kids can feel it working.
   const preview = document.querySelector('.paddle-preview');
-  preview.style.transform = `translateY(${(paddle - 0.5) * 120}px)`;
+  preview.style.transform = `translateY(${(paddle - 0.5) * window.innerHeight * 0.35}px)`;
 }
 
 const swipe = $('swipe');

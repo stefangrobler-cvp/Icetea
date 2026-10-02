@@ -75,6 +75,7 @@ button.go {
   padding: 16px;
 }
 .overlay.dim { background: rgba(5, 1, 15, 0.72); }
+#lobby.overlay.dim { background: rgba(5, 1, 15, 0.86); }
 .overlay.solid { background: var(--bg); }
 
 .title { font-size: clamp(32px, 7vw, 84px); color: var(--p2); margin: 0; letter-spacing: 4px; }
@@ -201,7 +202,7 @@ body.phone { --line: var(--me); }
   font-size: 18px;
 }
 
-.phone-score { font-size: 28px; display: flex; gap: 14px; }
+.phone-score { position: absolute; left: 50%; transform: translateX(-50%); font-size: 36px; display: flex; gap: 14px; }
 
 .pause-btn {
   width: 76px;
@@ -223,10 +224,10 @@ body.phone { --line: var(--me); }
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 30px;
+  justify-content: space-between;
+  padding: calc(env(safe-area-inset-top) + 110px) 0 30px;
 }
-.swipe .arrow { font-size: 64px; color: var(--me); opacity: 0.35; }
+.swipe .arrow { font-size: 64px; color: var(--me); opacity: 0.3; }
 .swipe .paddle-preview {
   width: 34px;
   height: 120px;
