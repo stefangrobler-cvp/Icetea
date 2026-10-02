@@ -5,6 +5,7 @@ export const MSG = {
   // game screen -> server
   HOST: 'host', // { t, room?, token? } create a room, or reclaim one after a reload
   BROADCAST: 'bcast', // { t, msg } send `msg` to every phone in the room
+  SEND_TO: 'to', // { t, slot, msg } send `msg` to one phone
 
   // server -> game screen
   ROOM: 'room', // { t, room, token, players: { 1: bool, 2: bool } }
@@ -12,13 +13,18 @@ export const MSG = {
 
   // phone -> server
   JOIN: 'join', // { t, room, clientId }
-  INPUT: 'in', // { t, y } paddle position, 0 (top) .. 1 (bottom)
+  INPUT: 'in', // { t, y, n } paddle position, 0 (top) .. 1 (bottom); n counts up so old ones are ignored
   COMMAND: 'cmd', // { t, action, ...extra }
 
   // server -> phone
   JOINED: 'joined', // { t, slot }
   HOST_STATUS: 'hoststatus', // { t, online }
   STATE: 'state', // relayed from game screen: scores, phase, settings...
+
+  // phone <-> game screen (via the server, or over the direct link once it is up)
+  SIGNAL: 'sig', // { t, data } setting up the direct phone-to-tablet link (WebRTC)
+  PING: 'ping', // { t, ts, rtt, direct } phone measuring the delay to the game screen
+  PONG: 'pong', // { t, ts } reply to a ping
 
   // either direction
   ERROR: 'error', // { t, reason }

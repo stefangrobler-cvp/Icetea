@@ -5,6 +5,7 @@ import { Engine, PHASE } from '/shared/engine.js';
 import { MODES, COLORS } from '/shared/config.js';
 import { MSG, ACTIONS } from '/shared/protocol.js';
 import { Connection, keepScreenOn } from './net.js';
+import { HostLinks } from './direct.js';
 import { Renderer } from './renderer.js';
 import { unlock, sounds } from './sound.js';
 
@@ -13,6 +14,8 @@ const $ = (id) => document.getElementById(id);
 const engine = new Engine();
 const renderer = new Renderer($('court'));
 const players = { 1: false, 2: false }; // which phones are connected
+const lastSeq = { 1: 0, 2: 0 }; // newest paddle message seen from each phone
+const lag = { 1: null, 2: null }; // { rtt, direct } as reported by each phone
 let room = null;
 let started = false; // has someone tapped "Tap to start"?
 
@@ -33,7 +36,13 @@ const conn = new Connection({
   onMessage(msg) {
     switch (msg.t) {
       case MSG.INPUT:
-        engine.setPaddle(msg.s, msg.y);
+        paddleInput(msg.s, msg);
+        break;
+      case MSG.SIGNAL:
+        links.handleSignal(msg.slot, msg.data);
+        break;
+      case MSG.PING:
+        handlePing(msg.slot, msg, (reply) => conn.send({ t: MSG.SEND_TO, slot: msg.slot, msg: reply }));
         break;
       case MSG.ROOM:
         room = msg.room;
@@ -52,7 +61,30 @@ const conn = new Connection({
   },
 });
 
+// Direct Wi-Fi links to the phones (see direct.js).
+const links = new HostLinks({
+  sendSignal: (slot, data) => conn.send({ t: MSG.SEND_TO, slot, msg: { t: MSG.SIGNAL, data } }),
+  onMessage: (slot, msg, reply) => {
+    if (msg.t === MSG.INPUT) paddleInput(slot, msg);
+    else if (msg.t === MSG.PING) handlePing(slot, msg, reply);
+  },
+});
+
+// Paddle positions can arrive by two routes, so ignore any older than the newest.
+function paddleInput(slot, msg) {
+  if (!(msg.n > lastSeq[slot])) return;
+  lastSeq[slot] = msg.n;
+  engine.setPaddle(slot, msg.y);
+}
+
+function handlePing(slot, msg, reply) {
+  reply({ t: MSG.PONG, ts: msg.ts });
+  lag[slot] = msg.rtt == null ? null : { rtt: msg.rtt, direct: Boolean(msg.direct) };
+}
+
 function setPlayer(slot, connected) {
+  if (connected && !players[slot]) lastSeq[slot] = 0; // phone (re)joined: it may count from 1 again
+  if (!connected) { links.close(slot); lag[slot] = null; }
   players[slot] = Boolean(connected);
   engine.setPlayerConnected(slot, players[slot]);
 }
@@ -132,7 +164,7 @@ function syncPhones() {
 let lastView = '';
 function updateScreen() {
   const s = engine.state;
-  const view = JSON.stringify([started, s.phase, s.settings, players, s.missing, s.winner,
+  const view = JSON.stringify([started, s.phase, s.settings, players, lag, s.missing, s.winner,
     s.phase === PHASE.COUNTDOWN ? Math.ceil(s.countdown) : 0]);
   if (view === lastView) return;
   lastView = view;
@@ -147,7 +179,7 @@ function updateScreen() {
   for (const slot of [1, 2]) {
     const chip = $(`chip-${slot}`);
     chip.classList.toggle('on', players[slot]);
-    chip.querySelector('small').textContent = players[slot] ? 'Ready!' : 'Waiting…';
+    chip.querySelector('small').textContent = players[slot] ? `Ready! ${lagText(slot)}` : 'Waiting…';
   }
   document.querySelectorAll('[data-setting]').forEach((row) => {
     const current = s.settings[row.dataset.setting];
@@ -200,6 +232,27 @@ function updateScreen() {
   }
 }
 
+// e.g. "⚡ 14ms" (direct over Wi-Fi) or "🌐 160ms" (through the internet server)
+function lagText(slot) {
+  const l = lag[slot];
+  return l ? `${l.direct ? '⚡' : '🌐'} ${l.rtt}ms` : '';
+}
+
+// Small connection readout in the corner, to check how quick the controls are.
+let fps = 0;
+let frames = 0;
+let fpsTime = performance.now();
+function updateStats(now) {
+  frames += 1;
+  if (now - fpsTime >= 1000) {
+    fps = Math.round((frames * 1000) / (now - fpsTime));
+    frames = 0;
+    fpsTime = now;
+    const parts = [1, 2].filter((slot) => players[slot]).map((slot) => `P${slot} ${lagText(slot)}`);
+    $('stats').textContent = `${parts.join('   ')}   ${fps}fps`;
+  }
+}
+
 function confetti() {
   const colors = [COLORS[1], COLORS[2], COLORS.cpu, '#39ff7a'];
   for (let i = 0; i < 80; i++) {
@@ -242,6 +295,7 @@ function frame(now) {
   updateScreen();
   syncPhones();
   renderer.draw(engine.state, dt);
+  updateStats(now);
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

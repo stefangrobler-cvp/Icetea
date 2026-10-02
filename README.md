@@ -12,6 +12,11 @@ controllers. Nothing to install: it all runs in the web browser.
 4. Press **START**. Swipe up and down on the phone to move your paddle.
 5. First to 7 wins. Either phone can pause (❚❚) and resume (▶).
 
+The tablet's lobby (and the small text in the bottom corner during a game) shows
+how quick each phone's connection is: **⚡** means the phone talks straight to the
+tablet over Wi-Fi (fastest), **🌐** means it goes through the internet server.
+For ⚡, the phones and tablet must be on the same Wi-Fi.
+
 If a phone locks or loses Wi-Fi, the game pauses and shows *Waiting for player*.
 Unlock the phone (or scan the code again) and the game carries on.
 

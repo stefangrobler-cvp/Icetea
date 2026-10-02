@@ -44,8 +44,16 @@ test('phones join a room, inputs reach the screen, state reaches the phones', as
   assert.equal((await b.next('joined')).slot, 2);
   assert.deepEqual(await host.next('player'), { t: 'player', slot: 1, connected: true });
 
-  a.send(JSON.stringify({ t: 'in', y: 0.25 }));
-  assert.deepEqual(await host.next('in'), { t: 'in', s: 1, y: 0.25 });
+  a.send(JSON.stringify({ t: 'in', y: 0.25, n: 7 }));
+  assert.deepEqual(await host.next('in'), { t: 'in', s: 1, y: 0.25, n: 7 });
+
+  // Setting up the direct link: phone -> screen, and screen -> one phone only.
+  a.send(JSON.stringify({ t: 'sig', data: { sdp: 'offer' } }));
+  assert.deepEqual(await host.next('sig'), { t: 'sig', data: { sdp: 'offer' }, slot: 1 });
+  host.send(JSON.stringify({ t: 'to', slot: 1, msg: { t: 'sig', data: { sdp: 'answer' } } }));
+  assert.deepEqual(await a.next('sig'), { t: 'sig', data: { sdp: 'answer' } });
+  await new Promise((r) => setTimeout(r, 100));
+  assert.equal(b.inbox.some((m) => m.t === 'sig'), false);
 
   b.send(JSON.stringify({ t: 'cmd', action: 'pause' }));
   assert.equal((await host.next('cmd')).slot, 2);

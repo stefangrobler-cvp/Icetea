@@ -156,8 +156,9 @@ function handlePhone(ws, msg) {
   const room = ws.room;
   if (msg.t === MSG.INPUT) {
     // Paddle movement: the hot path, forwarded as small as possible.
-    if (room.host) send(room.host, `{"t":"in","s":${ws.slot},"y":${Number(msg.y) || 0}}`);
-  } else if (msg.t === MSG.COMMAND) {
+    // (Normally this goes over the direct link instead; this is the backup route.)
+    if (room.host) send(room.host, `{"t":"in","s":${ws.slot},"y":${Number(msg.y) || 0},"n":${Number(msg.n) || 0}}`);
+  } else if (msg.t === MSG.COMMAND || msg.t === MSG.SIGNAL || msg.t === MSG.PING) {
     send(room.host, { ...msg, slot: ws.slot });
   }
 }
@@ -168,6 +169,8 @@ function handleHost(ws, msg) {
     const text = JSON.stringify(msg.msg);
     if (msg.msg.t === MSG.STATE) room.lastState = text; // late joiners get the latest state
     forEachPhone(room, (phone) => send(phone, text));
+  } else if (msg.t === MSG.SEND_TO && msg.msg) {
+    send(room.players[msg.slot]?.ws, msg.msg);
   }
 }
 

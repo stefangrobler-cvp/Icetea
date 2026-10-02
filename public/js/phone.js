@@ -3,6 +3,7 @@
 import { COLORS } from '/shared/config.js';
 import { MSG, ACTIONS } from '/shared/protocol.js';
 import { Connection, keepScreenOn } from './net.js';
+import { PhoneLink } from './direct.js';
 
 const $ = (id) => document.getElementById(id);
 const roomCode = (new URLSearchParams(location.search).get('room') || '').toUpperCase();
@@ -21,6 +22,7 @@ let hostOnline = true;
 let problem = roomCode ? null : 'noroom';
 let paddle = 0.5; // 0 = top, 1 = bottom
 let matchId = null;
+let rtt = null; // last measured delay to the game screen and back, in ms
 
 // ---------- connection ----------
 
@@ -31,6 +33,7 @@ const conn = new Connection({
   },
   onClose() {
     slot = null;
+    link.close();
     render();
   },
   onMessage(msg) {
@@ -39,11 +42,20 @@ const conn = new Connection({
         slot = msg.slot;
         problem = null;
         sendPaddle(true);
+        if (!link.open) link.start();
+        break;
+      case MSG.SIGNAL:
+        link.handleSignal(msg.data);
+        break;
+      case MSG.PONG:
+        handlePong(msg);
         break;
       case MSG.ERROR:
         problem = msg.reason;
         break;
       case MSG.HOST_STATUS:
+        // The game screen came back (e.g. it was reloaded): set up a fresh direct link.
+        if (msg.online && !hostOnline && slot) link.start();
         hostOnline = msg.online;
         break;
       case MSG.STATE:
@@ -63,18 +75,42 @@ function command(action, extra = {}) {
   conn.send({ t: MSG.COMMAND, action, ...extra });
 }
 
+// Direct link to the tablet over Wi-Fi, for paddle movement.
+const link = new PhoneLink({
+  sendSignal: (data) => conn.send({ t: MSG.SIGNAL, data }),
+  onMessage: (msg) => { if (msg.t === MSG.PONG) handlePong(msg); },
+});
+
+// Measure the delay to the game screen once a second (shown on the tablet).
+function handlePong(msg) {
+  rtt = Math.round(performance.now() - msg.ts);
+}
+setInterval(() => {
+  if (!slot) return;
+  const ping = JSON.stringify({ t: MSG.PING, ts: performance.now(), rtt, direct: link.open });
+  if (!link.send(ping)) conn.send(ping);
+}, 1000);
+
 // ---------- swiping ----------
 
 let lastSentY = null;
+let seq = 0;
 function sendPaddle(force = false) {
   const y = Math.round(paddle * 1000) / 1000;
   if (!force && y === lastSentY) return;
   lastSentY = y;
-  conn.send(`{"t":"in","y":${y}}`);
+  seq += 1;
+  const msg = `{"t":"in","y":${y},"n":${seq}}`;
+  // Straight to the tablet if we can, otherwise through the server.
+  if (!link.send(msg)) conn.send(msg);
   // Move the little paddle on the phone too, so kids can feel it working.
   const preview = document.querySelector('.paddle-preview');
   preview.style.transform = `translateY(${(paddle - 0.5) * window.innerHeight * 0.35}px)`;
 }
+
+// The direct link may drop a message now and then (on purpose, for speed),
+// so repeat the current position a few times a second.
+setInterval(() => { if (link.open) link.send(`{"t":"in","y":${lastSentY ?? 0.5},"n":${++seq}}`); }, 150);
 
 const swipe = $('swipe');
 const lastTouchY = new Map();
@@ -131,7 +167,7 @@ $('change').addEventListener('click', () => command(ACTIONS.CHANGE_SETTINGS));
 // Screen locked or switched app: tell the game straight away so it pauses,
 // then reconnect as soon as the phone is back.
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') conn.closeQuietly();
+  if (document.visibilityState === 'hidden') { link.close(); conn.closeQuietly(); }
   else conn.reconnectNow();
 });
 window.addEventListener('pageshow', (e) => { if (e.persisted) conn.reconnectNow(); });

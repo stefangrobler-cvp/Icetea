@@ -142,6 +142,17 @@ button.go {
   opacity: 0.6;
 }
 
+.stats {
+  position: fixed;
+  left: 12px;
+  bottom: 8px;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--muted);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
 .banner {
   position: fixed;
   top: 0;

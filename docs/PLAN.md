@@ -11,6 +11,11 @@
   draws it. Running the ball locally keeps it perfectly smooth.
 - **Phones = controllers.** They send the paddle position (not "move up a bit"),
   so a lost or late message can never leave a paddle in the wrong place.
+- **Direct link for swipes.** Each phone opens a direct WebRTC connection to
+  the tablet over the home Wi-Fi (`public/js/direct.js`), so paddle movement
+  never has to travel to the internet server and back. If that can't be set up,
+  swipes go through the server instead. The tablet shows which route each phone
+  uses: ⚡ = direct, 🌐 = through the server, plus the delay in milliseconds.
 - **Server = a tiny relay.** It creates a room per tablet, hands out the QR code,
   passes messages between phones and tablet, and tells the tablet when a phone
   drops or comes back. It has no game logic.
