@@ -61,12 +61,18 @@ export const soccer = {
     const r = BALL.radius;
     const speed = engine.speed;
     for (const p of engine.state.paddles) {
-      // Kid-friendly rule: your players only ever kick towards the other team's goal.
-      // A ball already heading that way passes through them (so you can't block
-      // your own shot), and a ball that has got behind them is already past.
       const forward = p.side === 'left' ? 1 : -1;
-      if (ball.vx * forward > 0) continue;
-      if ((ball.x - p.x) * forward < -p.w / 2) continue;
+      // Attackers play the ball both ways, so they can pass back to their defence.
+      // Defenders are the last line: they only clear the ball forward, and a ball
+      // that has got behind them (between them and their own goal) passes through,
+      // so it can't be knocked into their own net.
+      const lastLine = p.lane === LANE.DEFENCE;
+      if (lastLine && ball.vx * forward > 0) continue;
+      if (lastLine && (ball.x - p.x) * forward < -p.w / 2) continue;
+      // A clearance or kick-off by your own team passes through your attackers
+      // (so you never block your own shot or get stuck passing to yourself).
+      const t = ball.lastTouch;
+      if (ball.vx * forward > 0 && t && t.side === p.side && t.id !== p.id) continue;
       for (const o of p.offsets) {
         const c = capsuleContact(ball, r, p.x, p.y + o, p.h, p.w);
         if (!c) continue;
@@ -80,14 +86,15 @@ export const soccer = {
         if (dot >= 0) continue; // already moving apart
         let vx = rvx - 2 * dot * c.nx;
         let vy = rvy - 2 * dot * c.ny + p.vy;
-        if (vx * forward <= 0) vx = Math.abs(vx) * forward || forward; // glancing touches still go forward
+        if (lastLine && vx * forward <= 0) vx = Math.abs(vx) * forward || forward; // defenders' glancing touches still clear forward
         const len = Math.hypot(vx, vy) || 1;
         ball.vx = (vx / len) * speed;
         ball.vy = (vy / len) * speed;
         // A swipe while kicking puts curve on the ball, like in ping pong.
         const k = swipeStrength(p.vy);
         ball.spin = Math.abs(c.nx) > 0.4 ? k * TRACTION.spin : 0;
-        limitAngle(ball, speed, forward);
+        limitAngle(ball, speed, lastLine ? forward : c.nx);
+        ball.lastTouch = { side: p.side, id: p.id };
         events.push({ type: 'hit', paddle: p.id, x: ball.x, y: ball.y, nx: c.nx, ny: c.ny, power: Math.abs(k) });
         return; // one kick per step is plenty
       }

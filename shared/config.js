@@ -56,10 +56,10 @@ export const SOCCER = {
   // Where each rod sits, as a fraction of the court width. The rods interleave
   // like a real foosball table: L-defence, R-attack, L-attack, R-defence.
   rodX: { left: { [LANE.DEFENCE]: 0.15, [LANE.ATTACK]: 0.62 }, right: { [LANE.DEFENCE]: 0.85, [LANE.ATTACK]: 0.38 } },
-  // Players on each rod: 4 at the back, 3 up front. Spacing is worked out so
-  // that neighbouring players' reach overlaps by `overlap` (court units), so
-  // there is no spot on a rod's line that nobody can reach, at any player size.
-  playersPerRod: { [LANE.DEFENCE]: 4, [LANE.ATTACK]: 3 },
+  // Three players on each rod. Spacing is worked out so that neighbouring
+  // players' reach overlaps by `overlap` (court units), so there is no spot
+  // on a rod's line that nobody can reach, at any player size.
+  playersPerRod: { [LANE.DEFENCE]: 3, [LANE.ATTACK]: 3 },
   overlap: 70,
   playerLength: 0.45, // player size compared to the ping pong paddle for that level
   // The computer's players are never bigger than this (court units), so the
@@ -82,7 +82,7 @@ export const MODES = {
 //   distracted - chance (0..1) it doesn't react to a ball coming its way at all
 // Against flawless play the computer misses roughly 35-40% (easy), 15% (medium), 4% (hard).
 // `soccerAi` is the same idea for the soccer rods (blocking is easier there, so it is weaker).
-// Against a decent kid in simulation, the kid wins about 12/12 (easy), 6/12 (medium), 4/12 (hard).
+// Against a decent kid in simulation, the kid wins about 12/12 (easy), 7/12 (medium), 4/12 (hard).
 export const DIFFICULTIES = {
   easy: {
     id: 'easy',

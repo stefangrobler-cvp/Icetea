@@ -156,12 +156,12 @@ test('traction: swiping while hitting bends the ball path and adds curve', () =>
   for (const o of [still, down, up]) assert.ok(Math.abs(o.speed - DIFFICULTIES.easy.ballSpeed) < 1e-6, 'speed unchanged');
 });
 
-test('soccer: two rods per team (4 at the back, 3 up front), interleaved like foosball', () => {
+test('soccer: two rods of three players per team, interleaved like foosball', () => {
   const e = new Engine();
   e.setSettings({ game: 'soccer' });
   e.startMatch([1, 2]);
   const rods = [...e.state.paddles].sort((a, b) => a.x - b.x).map((p) => `${p.side}:${p.kind}:${p.offsets.length}`);
-  assert.deepEqual(rods, ['left:def:4', 'right:att:3', 'left:att:3', 'right:def:4']);
+  assert.deepEqual(rods, ['left:def:3', 'right:att:3', 'left:att:3', 'right:def:3']);
   assert.deepEqual(e.summary().controls, { 1: [{ lane: 0, kind: 'def' }, { lane: 1, kind: 'att' }], 2: [{ lane: 1, kind: 'att' }, { lane: 0, kind: 'def' }] });
   // Each lane moves its own rod.
   e.setPaddle(1, 0, 0);
@@ -365,20 +365,33 @@ test('pause: change the level on the fly, then carry on with the same scores', (
   assert.equal(e.state.phase, PHASE.LOBBY);
 });
 
-test('soccer: your own players never block your shot, and always kick forward', () => {
+test('soccer: attackers can pass back; defenders clear forward and never score own goals', () => {
   const e = soccerShot(COURT.height / 2);
   e.startMatch([1, 2]);
   toPlay(e);
-  const att = e.state.paddles.find((p) => p.id === 'left-att');
+  const all = e.state.paddles;
+  const att = all.find((p) => p.id === 'left-att');
+  const def = all.find((p) => p.id === 'left-def');
+  // Ball heading forward hits the back of its own attacker: bounces back (a back pass).
   e.state.paddles = [att];
-  // Left team's ball heading right, straight at its own attacker: passes through.
-  att.y = att.target = COURT.height / 2 - att.offsets[1];
-  e.state.ball = { x: att.x - 200, y: COURT.height / 2, vx: e.speed, vy: 0, spin: 0, visible: true };
-  let events = run(e, 0.6);
-  assert.equal(events.some((x) => x.type === 'hit'), false);
-  // Ball coming back at the attacker from the front: kicked forward again.
-  e.state.ball = { x: att.x + 200, y: COURT.height / 2 + 10, vx: -e.speed, vy: 0, spin: 0, visible: true };
+  att.y = att.target = COURT.height / 2;
+  e.state.ball = { x: att.x - 200, y: COURT.height / 2 + 5, vx: e.speed, vy: 0, spin: 0, visible: true };
+  let events = run(e, 0.5);
+  assert.ok(events.some((x) => x.type === 'hit' && x.paddle === 'left-att'));
+  assert.ok(e.state.ball.vx < 0, 'attacker passed it back');
+  // ...but a clearance by the team's own defender flies past its attackers.
+  e.state.ball = { x: att.x - 200, y: COURT.height / 2 + 5, vx: e.speed, vy: 0, spin: 0, visible: true, lastTouch: { side: 'left', id: 'left-def' } };
   events = run(e, 0.5);
-  assert.ok(events.some((x) => x.type === 'hit'));
+  assert.equal(events.some((x) => x.type === 'hit'), false);
+  // Ball behind the defender, heading forward (off the end wall): passes through.
+  e.state.paddles = [def];
+  def.y = def.target = COURT.height / 2;
+  e.state.ball = { x: def.x - 120, y: COURT.height / 2, vx: e.speed, vy: 0, spin: 0, visible: true };
+  events = run(e, 0.4);
+  assert.equal(events.some((x) => x.type === 'hit'), false);
+  // Ball coming at the defender from the front: cleared forward.
+  e.state.ball = { x: def.x + 250, y: COURT.height / 2 + 10, vx: -e.speed, vy: 0, spin: 0, visible: true };
+  events = run(e, 0.6);
+  assert.ok(events.some((x) => x.type === 'hit' && x.paddle === 'left-def'));
   assert.ok(e.state.ball.vx > 0);
 });

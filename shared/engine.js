@@ -325,7 +325,10 @@ export class Engine {
   launch(events) {
     const s = this.state;
     const a = s.kickoff.aim;
-    s.ball = { x: COURT.width / 2, y: COURT.height / 2, vx: Math.cos(a) * this.speed, vy: Math.sin(a) * this.speed, spin: 0, visible: true };
+    s.ball = {
+      x: COURT.width / 2, y: COURT.height / 2, vx: Math.cos(a) * this.speed, vy: Math.sin(a) * this.speed, spin: 0, visible: true,
+      lastTouch: { side: s.kickoff.side, id: 'kickoff' }, // kick-offs fly past your own attackers
+    };
     events.push({ type: 'kickoff', side: s.kickoff.side, x: s.ball.x, y: s.ball.y });
     s.kickoff = null;
     s.phase = PHASE.PLAYING;
