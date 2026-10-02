@@ -2,6 +2,7 @@
 // Effects (bounces, ripples, wobbling paddles) are driven by the engine's events.
 
 import { COURT, BALL, COLORS, SOCCER } from '/shared/config.js';
+import { goalHeight } from '/shared/games/soccer.js';
 
 // Older iPads (before iOS 16) can't draw rounded rectangles natively.
 if (!CanvasRenderingContext2D.prototype.roundRect) {
@@ -226,11 +227,11 @@ export class Renderer {
   pitchSprite(state) {
     const leftColor = this.sideColor(state, 'left');
     const rightColor = this.sideColor(state, 'right');
-    return this.sprite(`pitch:${leftColor}:${rightColor}`, COURT.width, COURT.height, 70, (ctx, scale) => {
+    const gH = goalHeight(state.settings.difficulty);
+    return this.sprite(`pitch:${leftColor}:${rightColor}:${gH}`, COURT.width, COURT.height, 70, (ctx, scale) => {
       const W = COURT.width;
       const H = COURT.height;
-      const gTop = H / 2 - SOCCER.goalHeight / 2;
-      const gH = SOCCER.goalHeight;
+      const gTop = H / 2 - gH / 2;
       const depth = SOCCER.goalDepth;
 
       // Grass stripes

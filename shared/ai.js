@@ -20,6 +20,7 @@ export class ComputerPlayer {
     this.targetY = null;
     this.tracking = false; // true while the ball is heading our way
     this.error = 0;
+    this.dozing = false;
   }
 
   /** Move `paddle` (which belongs to this computer) for `dt` seconds. */
@@ -34,12 +35,16 @@ export class ComputerPlayer {
       this.tracking = true;
       this.reactTimer = s.reaction;
       this.error = (this.rng() * 2 - 1) * s.aimError;
+      // Now and then it just doesn't notice the ball coming (more often on Easy).
+      this.dozing = this.rng() < (s.distracted || 0);
     } else if (!comingTowardsUs) {
       this.tracking = false;
     }
 
     let goal;
-    if (this.tracking) {
+    if (this.dozing && ballInPlay) {
+      goal = this.targetY; // not paying attention: the rod stays put
+    } else if (this.tracking) {
       if (this.reactTimer > 0) {
         this.reactTimer -= dt;
         goal = this.targetY; // still "thinking", keep going where we were going
@@ -48,7 +53,8 @@ export class ComputerPlayer {
         goal = placeFor(paddle, aimAt + this.error);
       }
     } else if (rod && ballInPlay) {
-      goal = placeFor(paddle, ball.y); // rods keep shadowing the ball, ready for rebounds
+      // Rods keep shadowing the ball, ready for rebounds (with the same imperfect aim).
+      goal = placeFor(paddle, ball.y + this.error);
     } else {
       goal = (paddle.minY + paddle.maxY) / 2; // drift back to the middle while waiting
     }

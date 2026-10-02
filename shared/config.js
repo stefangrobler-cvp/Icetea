@@ -5,6 +5,14 @@ export const COURT = { width: 1600, height: 900 };
 
 export const POINTS_TO_WIN = 7;
 export const COUNTDOWN_SECONDS = 3;
+export const TOSS_SECONDS = 2.6; // coin toss at the start of every match
+
+// Soccer kick-off: the kicker aims on their phone, then lets go.
+export const KICKOFF = {
+  getReady: 1.2, // seconds before the kicker can kick (time to see the goal celebration)
+  timeLimit: 12, // after this many seconds the ball is kicked automatically
+  cpuThinking: 1.4, // how long the computer "aims" before kicking
+};
 
 export const PADDLE = {
   width: 24,
@@ -43,14 +51,20 @@ export const LANE = { MAIN: 0, DEFENCE: 0, ATTACK: 1 };
 
 // Foosball-style soccer.
 export const SOCCER = {
-  goalHeight: 300, // the goal mouth in the middle of each end
+  goalHeight: { easy: 380, medium: 320, hard: 280 }, // the goal mouth in the middle of each end, per level
   goalDepth: 46, // how far the net sticks out behind the goal line (drawing only)
   // Where each rod sits, as a fraction of the court width. The rods interleave
   // like a real foosball table: L-defence, R-attack, L-attack, R-defence.
   rodX: { left: { [LANE.DEFENCE]: 0.15, [LANE.ATTACK]: 0.62 }, right: { [LANE.DEFENCE]: 0.85, [LANE.ATTACK]: 0.38 } },
-  playersPerRod: 3,
-  playerSpacing: 300, // distance between the players on a rod
+  // Players on each rod: 4 at the back, 3 up front. Spacing is worked out so
+  // that neighbouring players' reach overlaps by `overlap` (court units), so
+  // there is no spot on a rod's line that nobody can reach, at any player size.
+  playersPerRod: { [LANE.DEFENCE]: 4, [LANE.ATTACK]: 3 },
+  overlap: 70,
   playerLength: 0.45, // player size compared to the ping pong paddle for that level
+  // The computer's players are never bigger than this (court units), so the
+  // "big players" help on Easy goes to the kids, not to the computer.
+  cpuMaxPlayerLength: 80,
   playerWidth: 30,
   ballSpeed: 0.9, // ball speed compared to ping pong for that level
 };
@@ -65,7 +79,10 @@ export const MODES = {
 //   reaction   - seconds before it reacts to the ball coming its way
 //   aimError   - how far off (court units) its guess of where the ball lands can be
 //   predict    - true = works out bounces off the walls, false = just chases the ball
+//   distracted - chance (0..1) it doesn't react to a ball coming its way at all
 // Against flawless play the computer misses roughly 35-40% (easy), 15% (medium), 4% (hard).
+// `soccerAi` is the same idea for the soccer rods (blocking is easier there, so it is weaker).
+// Against a decent kid in simulation, the kid wins about 12/12 (easy), 6/12 (medium), 4/12 (hard).
 export const DIFFICULTIES = {
   easy: {
     id: 'easy',
@@ -73,6 +90,7 @@ export const DIFFICULTIES = {
     paddleHeight: 250,
     ballSpeed: 560,
     ai: { maxSpeed: 300, reaction: 0.5, aimError: 330, predict: false },
+    soccerAi: { maxSpeed: 200, reaction: 0.5, aimError: 140, predict: false, distracted: 0.45 },
   },
   medium: {
     id: 'medium',
@@ -80,6 +98,7 @@ export const DIFFICULTIES = {
     paddleHeight: 175,
     ballSpeed: 820,
     ai: { maxSpeed: 560, reaction: 0.2, aimError: 115, predict: true },
+    soccerAi: { maxSpeed: 420, reaction: 0.25, aimError: 80, predict: true, distracted: 0.22 },
   },
   hard: {
     id: 'hard',
@@ -87,6 +106,7 @@ export const DIFFICULTIES = {
     paddleHeight: 120,
     ballSpeed: 1080,
     ai: { maxSpeed: 1000, reaction: 0.07, aimError: 68, predict: true },
+    soccerAi: { maxSpeed: 600, reaction: 0.1, aimError: 60, predict: true, distracted: 0.12 },
   },
 };
 

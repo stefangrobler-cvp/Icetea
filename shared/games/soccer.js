@@ -4,14 +4,19 @@
 import { COURT, BALL, COLORS, LANE, SOCCER, TRACTION } from '../config.js';
 import { capsuleContact, limitAngle, swipeStrength } from '../physics.js';
 
-const goalTop = () => COURT.height / 2 - SOCCER.goalHeight / 2;
-const goalBottom = () => COURT.height / 2 + SOCCER.goalHeight / 2;
+/** Size of the goal mouth for a level (bigger on Easy, so goals come more often). */
+export const goalHeight = (difficulty) => SOCCER.goalHeight[difficulty] || SOCCER.goalHeight.medium;
+const goalTop = (difficulty) => COURT.height / 2 - goalHeight(difficulty) / 2;
+const goalBottom = (difficulty) => COURT.height / 2 + goalHeight(difficulty) / 2;
 const POST_RADIUS = 7;
 
 function rod({ side, lane, slot = null, color, diff }) {
-  const h = Math.round(diff.paddleHeight * SOCCER.playerLength);
-  const S = SOCCER.playerSpacing;
-  const n = SOCCER.playersPerRod;
+  let h = Math.round(diff.paddleHeight * SOCCER.playerLength);
+  if (slot === null) h = Math.min(h, SOCCER.cpuMaxPlayerLength);
+  const n = SOCCER.playersPerRod[lane];
+  // Each player can slide over a band of the pitch; with this spacing the bands
+  // of neighbouring players overlap by SOCCER.overlap, whatever the player size.
+  const S = (COURT.height - SOCCER.overlap) / n;
   const offsets = Array.from({ length: n }, (_, i) => (i - (n - 1) / 2) * S);
   const reach = offsets[offsets.length - 1];
   return {
@@ -46,6 +51,7 @@ export const soccer = {
       return [...team('left', [1, 1], kidColor), ...team('right', [2, 2], kidColor)];
     }
     // Team v computer: with two kids, one takes defence and the other attack.
+    // With one kid, they work both rods.
     const owners = slots.length >= 2 ? [slots[0], slots[1]] : [slots[0], slots[0]];
     return [...team('left', owners, kidColor), ...team('right', [null, null], () => COLORS.cpu)];
   },
@@ -55,6 +61,12 @@ export const soccer = {
     const r = BALL.radius;
     const speed = engine.speed;
     for (const p of engine.state.paddles) {
+      // Kid-friendly rule: your players only ever kick towards the other team's goal.
+      // A ball already heading that way passes through them (so you can't block
+      // your own shot), and a ball that has got behind them is already past.
+      const forward = p.side === 'left' ? 1 : -1;
+      if (ball.vx * forward > 0) continue;
+      if ((ball.x - p.x) * forward < -p.w / 2) continue;
       for (const o of p.offsets) {
         const c = capsuleContact(ball, r, p.x, p.y + o, p.h, p.w);
         if (!c) continue;
@@ -68,13 +80,14 @@ export const soccer = {
         if (dot >= 0) continue; // already moving apart
         let vx = rvx - 2 * dot * c.nx;
         let vy = rvy - 2 * dot * c.ny + p.vy;
+        if (vx * forward <= 0) vx = Math.abs(vx) * forward || forward; // glancing touches still go forward
         const len = Math.hypot(vx, vy) || 1;
         ball.vx = (vx / len) * speed;
         ball.vy = (vy / len) * speed;
         // A swipe while kicking puts curve on the ball, like in ping pong.
         const k = swipeStrength(p.vy);
         ball.spin = Math.abs(c.nx) > 0.4 ? k * TRACTION.spin : 0;
-        limitAngle(ball, speed, c.nx);
+        limitAngle(ball, speed, forward);
         events.push({ type: 'hit', paddle: p.id, x: ball.x, y: ball.y, nx: c.nx, ny: c.ny, power: Math.abs(k) });
         return; // one kick per step is plenty
       }
@@ -86,8 +99,8 @@ export const soccer = {
     const { ball } = engine.state;
     const r = BALL.radius;
     const W = COURT.width;
-    const top = goalTop();
-    const bottom = goalBottom();
+    const top = goalTop(engine.state.settings.difficulty);
+    const bottom = goalBottom(engine.state.settings.difficulty);
 
     // Goal posts: small round bumpers at each corner of both goal mouths.
     for (const px of [0, W]) {

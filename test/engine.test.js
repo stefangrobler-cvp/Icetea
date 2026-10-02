@@ -11,6 +11,16 @@ function seeded(seed = 1) {
   };
 }
 
+// Skip the coin toss and countdown (or kick off, in soccer) until the ball is in play.
+function toPlay(e) {
+  for (let i = 0; i < 60 * 20 && e.state.phase !== PHASE.PLAYING; i++) {
+    const k = e.state.kickoff;
+    if (k && k.slot && k.wait <= 0) e.kick(k.slot, k.aim);
+    e.step(1 / 60);
+  }
+  assert.equal(e.state.phase, PHASE.PLAYING);
+}
+
 function run(engine, seconds, onFrame) {
   const all = [];
   for (let t = 0; t < seconds; t += 1 / 60) {
@@ -20,12 +30,16 @@ function run(engine, seconds, onFrame) {
   return all;
 }
 
-test('head to head: countdown, serve, and the ball moves at a constant speed', () => {
+test('head to head: coin toss, countdown, the toss winner serves, constant speed', () => {
   const e = new Engine({ rng: seeded(3) });
   e.setSettings({ mode: 'versus', difficulty: 'medium' });
   e.startMatch([1, 2]);
+  assert.equal(e.state.phase, PHASE.TOSS);
+  const winner = e.state.toss.winner;
+  run(e, 2.7);
   assert.equal(e.state.phase, PHASE.COUNTDOWN);
-  run(e, 3.1);
+  toPlay(e);
+  assert.equal(Math.sign(e.state.ball.vx), winner === 'left' ? 1 : -1, 'ball goes away from the toss winner');
   assert.equal(e.state.phase, PHASE.PLAYING);
   const speed = DIFFICULTIES.medium.ballSpeed;
   run(e, 0.5);
@@ -35,8 +49,8 @@ test('head to head: countdown, serve, and the ball moves at a constant speed', (
 test('a missed ball scores for the other side and serves towards the loser', () => {
   const e = new Engine({ rng: seeded(5) });
   e.startMatch([1, 2]);
-  e.state.serveTo = 'left';
-  run(e, 3.05);
+  e.state.toss.winner = 'right'; // right serves, towards the left
+  toPlay(e);
   // Keep the left paddle far away from the ball so it misses.
   const events = run(e, 5, (eng) => eng.setPaddle(1, eng.state.ball.y > COURT.height / 2 ? 0 : 1));
   const point = events.find((ev) => ev.type === 'point');
@@ -48,7 +62,7 @@ test('a missed ball scores for the other side and serves towards the loser', () 
 test('a paddle in the way returns the ball', () => {
   const e = new Engine({ rng: seeded(7) });
   e.startMatch([1, 2]);
-  run(e, 3.05);
+  toPlay(e);
   const track = (eng) => {
     const b = eng.state.ball;
     for (const p of eng.state.paddles) p.target = b.y;
@@ -71,7 +85,7 @@ test('first to 7 wins', () => {
 test('pause and disconnect hold the game, and it resumes where it was', () => {
   const e = new Engine({ rng: seeded(11) });
   e.startMatch([1, 2]);
-  run(e, 3.2);
+  toPlay(e);
   const before = { ...e.state.ball };
   e.pause();
   assert.equal(e.state.phase, PHASE.PAUSED);
@@ -83,7 +97,7 @@ test('pause and disconnect hold the game, and it resumes where it was', () => {
   assert.equal(e.state.phase, PHASE.PAUSED); // still paused by the player
   e.resume();
   assert.equal(e.state.phase, PHASE.COUNTDOWN);
-  run(e, 3.05);
+  toPlay(e);
   assert.equal(e.state.phase, PHASE.PLAYING);
   assert.equal(Math.sign(e.state.ball.vx), Math.sign(before.vx)); // same rally continues
   assert.deepEqual(e.state.scores, { left: 0, right: 0 });
@@ -113,7 +127,7 @@ test('traction: swiping while hitting bends the ball path and adds curve', () =>
   const outgoing = (swipe) => {
     const e = new Engine({ rng: seeded(21) });
     e.startMatch([1, 2]);
-    run(e, 3.2);
+    toPlay(e);
     const s = e.state;
     const left = s.paddles[0];
     // Ball flying flat at the middle of the left paddle.
@@ -142,12 +156,12 @@ test('traction: swiping while hitting bends the ball path and adds curve', () =>
   for (const o of [still, down, up]) assert.ok(Math.abs(o.speed - DIFFICULTIES.easy.ballSpeed) < 1e-6, 'speed unchanged');
 });
 
-test('soccer: two rods of three players per team, interleaved like foosball', () => {
+test('soccer: two rods per team (4 at the back, 3 up front), interleaved like foosball', () => {
   const e = new Engine();
   e.setSettings({ game: 'soccer' });
   e.startMatch([1, 2]);
   const rods = [...e.state.paddles].sort((a, b) => a.x - b.x).map((p) => `${p.side}:${p.kind}:${p.offsets.length}`);
-  assert.deepEqual(rods, ['left:def:3', 'right:att:3', 'left:att:3', 'right:def:3']);
+  assert.deepEqual(rods, ['left:def:4', 'right:att:3', 'left:att:3', 'right:def:4']);
   assert.deepEqual(e.summary().controls, { 1: [{ lane: 0, kind: 'def' }, { lane: 1, kind: 'att' }], 2: [{ lane: 1, kind: 'att' }, { lane: 0, kind: 'def' }] });
   // Each lane moves its own rod.
   e.setPaddle(1, 0, 0);
@@ -173,7 +187,7 @@ function soccerShot(y, vy = 0) {
   const e = new Engine({ rng: seeded(4) });
   e.setSettings({ game: 'soccer' });
   e.startMatch([1, 2]);
-  run(e, 3.2);
+  toPlay(e);
   e.state.paddles = [];
   e.state.ball = { x: 300, y, vx: -e.speed, vy, spin: 0, visible: true };
   return e;
@@ -196,9 +210,9 @@ test('soccer: the end wall beside the goal bounces the ball back', () => {
 test('soccer: a player in the way blocks the shot and the speed stays the same', () => {
   const e = soccerShot(COURT.height / 2);
   e.startMatch([1, 2]);
-  run(e, 3.2);
+  toPlay(e);
   const def = e.state.paddles.find((p) => p.id === 'left-def');
-  def.y = def.target = COURT.height / 2; // middle player right on the ball's path
+  def.y = def.target = COURT.height / 2 - def.offsets[1]; // a player right on the ball's path
   e.state.ball = { x: 600, y: COURT.height / 2, vx: -e.speed, vy: 0, spin: 0, visible: true };
   e.state.paddles = [def];
   const events = run(e, 1);
@@ -211,11 +225,23 @@ test('soccer: a full match against the computer finishes', () => {
   const e = new Engine({ rng: seeded(8) });
   e.setSettings({ game: 'soccer', mode: 'team', difficulty: 'medium' });
   e.startMatch([1]);
+  const rng = seeded(99);
+  let kidClock = -1;
+  let kidError = 0;
   run(e, 900, (eng) => {
-    // A kid who just follows the ball with both rods.
-    eng.setPaddle(1, eng.state.ball.y / COURT.height, 0);
-    eng.setPaddle(1, eng.state.ball.y / COURT.height, 1);
+    // A decent (not perfect) kid: lines the nearest player of each rod up with
+    // the ball, but misjudges it a little, more so now and then.
+    if (Math.floor(eng.time * 2) !== kidClock) { kidClock = Math.floor(eng.time * 2); kidError = (rng() * 2 - 1) * 70; }
+    const aimY = eng.state.ball.y + kidError;
+    for (const p of eng.state.paddles.filter((x) => x.slot === 1)) {
+      const reach = (o) => Math.abs(Math.max(p.minY, Math.min(p.maxY, aimY - o)) + o - aimY);
+      const o = p.offsets.reduce((a2, b2) => (reach(b2) < reach(a2) ? b2 : a2));
+      eng.setPaddle(1, (aimY - o - p.minY) / (p.maxY - p.minY), p.lane);
+    }
+    const k = eng.state.kickoff;
+    if (k && k.slot === 1 && k.wait <= 0) eng.kick(1, 0);
   });
+  console.log(`soccer match vs medium computer: ${e.state.scores.left}-${e.state.scores.right} (${e.state.phase})`);
   assert.equal(e.state.phase, PHASE.OVER);
   console.log(`soccer match vs medium computer: ${e.state.scores.left}-${e.state.scores.right}`);
 });
@@ -252,4 +278,107 @@ test('computer gets better with difficulty', () => {
   assert.ok(easy > medium && medium > hard, 'harder levels should miss less');
   assert.ok(easy >= 0.25, 'easy computer should make plenty of mistakes');
   assert.ok(hard <= 0.08, 'hard computer should rarely miss');
+});
+
+test('soccer: every spot along every rod can be reached by some player, at every level', () => {
+  for (const difficulty of ['easy', 'medium', 'hard']) {
+    const e = new Engine();
+    e.setSettings({ game: 'soccer', difficulty });
+    e.startMatch([1, 2]);
+    for (const p of e.state.paddles) {
+      for (let y = BALL.radius; y <= COURT.height - BALL.radius; y += 2) {
+        // Can any player on this rod be moved so its body covers height y?
+        const ok = p.offsets.some((o) => y >= p.minY + o - p.h / 2 && y <= p.maxY + o + p.h / 2);
+        assert.ok(ok, `${difficulty} ${p.id}: nobody can reach y=${y}`);
+      }
+      // ...and neighbouring players' reach overlaps, so nothing slips between them.
+      for (let i = 1; i < p.offsets.length; i++) {
+        const overlap = (p.maxY + p.offsets[i - 1] + p.h / 2) - (p.minY + p.offsets[i] - p.h / 2);
+        assert.ok(overlap >= SOCCER.overlap - 1e-6, `${difficulty} ${p.id}: overlap ${overlap}`);
+      }
+    }
+  }
+});
+
+test('soccer: coin toss winner kicks off, then the team that lets a goal in kicks off', () => {
+  const e = new Engine({ rng: seeded(12) });
+  e.setSettings({ game: 'soccer' });
+  e.startMatch([1, 2]);
+  const winner = e.state.toss.winner;
+  run(e, 2.7);
+  assert.equal(e.state.phase, PHASE.KICKOFF);
+  assert.equal(e.state.kickoff.side, winner);
+  const kicker = e.state.kickoff.slot;
+  assert.equal(kicker, winner === 'left' ? 1 : 2);
+  // Can't kick while the "get ready" moment is on, and only the kicker can kick.
+  assert.equal(e.kick(kicker, 0), false);
+  run(e, 1.3);
+  assert.equal(e.kick(kicker === 1 ? 2 : 1, 0), false);
+  // Aim straight up: gets limited to a sensible angle, still the right way.
+  assert.ok(e.aimKickoff(kicker, -Math.PI / 2));
+  assert.ok(e.kick(kicker));
+  assert.equal(e.state.phase, PHASE.PLAYING);
+  assert.equal(Math.sign(e.state.ball.vx), winner === 'left' ? 1 : -1);
+  assert.ok(e.state.ball.vy < 0);
+  // Fire the ball into the left goal: the left team kicks off next.
+  e.state.paddles = [];
+  Object.assign(e.state.ball, { x: 200, y: COURT.height / 2, vx: -e.speed, vy: 0, spin: 0 });
+  run(e, 1);
+  assert.equal(e.state.phase, PHASE.KICKOFF);
+  assert.equal(e.state.kickoff.side, 'left');
+});
+
+test('soccer: two kids v computer get one rod each; the attacker kicks off; computer kicks itself', () => {
+  const e = new Engine({ rng: seeded(2) });
+  e.setSettings({ game: 'soccer', mode: 'team' });
+  e.startMatch([1]);
+  assert.equal(e.summary().controls[1].length, 2); // one kid: both rods
+  e.addPlayer(2); // second kid joins mid-match
+  assert.deepEqual(e.summary().controls, { 1: [{ lane: 0, kind: 'def' }], 2: [{ lane: 1, kind: 'att' }] });
+  e.beginKickoff('left');
+  assert.equal(e.state.kickoff.slot, 2);
+  e.beginKickoff('right');
+  assert.equal(e.state.kickoff.slot, null);
+  for (let i = 0; i < 60 * 5 && e.state.phase !== PHASE.PLAYING; i++) e.step(1 / 60);
+  assert.equal(e.state.phase, PHASE.PLAYING);
+  assert.ok(e.state.ball.vx < 0, 'computer kicks towards the kids');
+});
+
+test('pause: change the level on the fly, then carry on with the same scores', () => {
+  const e = new Engine({ rng: seeded(6) });
+  e.setSettings({ game: 'soccer', difficulty: 'easy' });
+  e.startMatch([1, 2]);
+  toPlay(e);
+  e.state.scores = { left: 2, right: 3 };
+  const easyH = e.state.paddles[0].h;
+  assert.equal(e.setSettings({ difficulty: 'hard' }), false, 'not while playing');
+  e.pause();
+  assert.ok(e.setSettings({ difficulty: 'hard' }));
+  assert.equal(e.setSettings({ game: 'classic' }), false, 'game can only change from the menu');
+  assert.ok(e.state.paddles[0].h < easyH);
+  assert.ok(Math.abs(Math.hypot(e.state.ball.vx, e.state.ball.vy) - e.speed) < 1e-6);
+  e.resume();
+  toPlay(e);
+  assert.deepEqual(e.state.scores, { left: 2, right: 3 });
+  e.pause();
+  e.backToLobby();
+  assert.equal(e.state.phase, PHASE.LOBBY);
+});
+
+test('soccer: your own players never block your shot, and always kick forward', () => {
+  const e = soccerShot(COURT.height / 2);
+  e.startMatch([1, 2]);
+  toPlay(e);
+  const att = e.state.paddles.find((p) => p.id === 'left-att');
+  e.state.paddles = [att];
+  // Left team's ball heading right, straight at its own attacker: passes through.
+  att.y = att.target = COURT.height / 2 - att.offsets[1];
+  e.state.ball = { x: att.x - 200, y: COURT.height / 2, vx: e.speed, vy: 0, spin: 0, visible: true };
+  let events = run(e, 0.6);
+  assert.equal(events.some((x) => x.type === 'hit'), false);
+  // Ball coming back at the attacker from the front: kicked forward again.
+  e.state.ball = { x: att.x + 200, y: COURT.height / 2 + 10, vx: -e.speed, vy: 0, spin: 0, visible: true };
+  events = run(e, 0.5);
+  assert.ok(events.some((x) => x.type === 'hit'));
+  assert.ok(e.state.ball.vx > 0);
 });

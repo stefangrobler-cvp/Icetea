@@ -4,18 +4,18 @@
 //   1. calls engine.step(seconds) every frame and gets back a list of events
 //      (hits, bounces, points...) to play sounds or effects for,
 //   2. reads engine.state to draw the court,
-//   3. passes player input in with setPaddle(), pause(), resume() etc.
+//   3. passes player input in with setPaddle(), kick(), pause(), resume() etc.
 //
-// The match flow (countdown, pause, scoring, winning) lives here. What is
-// different between Ping Pong and Soccer lives in shared/games/.
+// The match flow (coin toss, countdown, kick-off, pause, scoring, winning)
+// lives here. What is different between Ping Pong and Soccer lives in shared/games/.
 // Phase two (power-ups) can hook in at step() and add new event types.
 
 import {
-  COURT, BALL, MODES, GAMES, DIFFICULTIES, POINTS_TO_WIN,
-  COUNTDOWN_SECONDS, DEFAULT_SETTINGS, PADDLE_GLIDE_SPEED,
+  COURT, BALL, MODES, GAMES, DIFFICULTIES, POINTS_TO_WIN, COUNTDOWN_SECONDS, TOSS_SECONDS,
+  KICKOFF, DEFAULT_SETTINGS, PADDLE_GLIDE_SPEED, LANE,
 } from './config.js';
 import { ComputerPlayer } from './ai.js';
-import { applySpin, clamp } from './physics.js';
+import { applySpin, clamp, limitAngle } from './physics.js';
 import { classic } from './games/classic.js';
 import { soccer } from './games/soccer.js';
 
@@ -25,37 +25,53 @@ const VELOCITY_SMOOTHING = 0.05; // seconds: how quickly a paddle's measured spe
 
 export const PHASE = {
   LOBBY: 'lobby', // choosing settings
-  COUNTDOWN: 'countdown', // 3, 2, 1 before a serve
+  TOSS: 'toss', // coin toss at the start of a match
+  COUNTDOWN: 'countdown', // 3, 2, 1 before a serve (ping pong) or carrying on after a pause
+  KICKOFF: 'kickoff', // soccer: ball on the centre spot, waiting for the kicker to aim and kick
   PLAYING: 'playing',
   PAUSED: 'paused', // someone pressed pause
   WAITING: 'waiting', // a player's phone dropped out
   OVER: 'over', // someone won
 };
 
+const LIVE = new Set([PHASE.TOSS, PHASE.COUNTDOWN, PHASE.KICKOFF, PHASE.PLAYING]);
+const other = (side) => (side === 'left' ? 'right' : 'left');
+
 export class Engine {
   constructor({ rng = Math.random } = {}) {
     this.rng = rng;
     this.accumulator = 0;
     this.ais = new Map(); // paddle id -> ComputerPlayer
-    this.time = 0;
+    this.slots = []; // the players in the current match
     this.state = {
       settings: { ...DEFAULT_SETTINGS },
       phase: PHASE.LOBBY,
       matchId: 0,
       scores: { left: 0, right: 0 },
       paddles: [],
-      ball: { x: COURT.width / 2, y: COURT.height / 2, vx: 0, vy: 0, spin: 0, visible: false },
+      ball: this.centreBall(),
       countdown: 0, // seconds left in the countdown
-      serveTo: 'left', // side the next serve goes towards
+      toss: null, // { winner, timeLeft } during the coin toss
+      kickoff: null, // { side, slot, aim, wait, timeLeft } during a soccer kick-off
+      serveTo: 'left', // ping pong: side the next serve goes towards
       resumeBall: false, // after a pause, continue the rally instead of serving
+      heldFrom: null, // the phase we were in when the game got paused
       manualPause: false,
       missing: [], // player slots whose phone is disconnected
       winner: null, // 'left' | 'right'
     };
   }
 
+  centreBall() {
+    return { x: COURT.width / 2, y: COURT.height / 2, vx: 0, vy: 0, spin: 0, visible: false };
+  }
+
   get rules() {
     return RULES[this.state.settings.game];
+  }
+
+  get soccer() {
+    return this.state.settings.game === 'soccer';
   }
 
   /** Ball speed for the current game and level. It never changes during a match. */
@@ -65,8 +81,22 @@ export class Engine {
 
   // ---------- settings & match flow ----------
 
+  /**
+   * Change settings. Anything goes between matches; while the game is paused
+   * only the difficulty can change, and it takes effect straight away.
+   */
   setSettings({ game, mode, difficulty }) {
     const s = this.state;
+    if (s.phase === PHASE.PAUSED || s.phase === PHASE.WAITING) {
+      if (!difficulty || !DIFFICULTIES[difficulty] || difficulty === s.settings.difficulty) return false;
+      s.settings.difficulty = difficulty;
+      this.rebuildPaddles(this.slots);
+      // A ball that was mid-rally carries on at the new level's speed.
+      const b = s.ball;
+      const v = Math.hypot(b.vx, b.vy);
+      if (v > 0) { b.vx *= this.speed / v; b.vy *= this.speed / v; }
+      return true;
+    }
     if (s.phase !== PHASE.LOBBY && s.phase !== PHASE.OVER) return false;
     if (game && GAMES[game]) s.settings.game = game;
     if (mode && MODES[mode]) s.settings.mode = mode;
@@ -82,24 +112,53 @@ export class Engine {
   /** Start a fresh match. `slots` are the connected players, e.g. [1, 2]. */
   startMatch(slots) {
     const s = this.state;
-    const { mode, difficulty } = s.settings;
-    const diff = DIFFICULTIES[difficulty];
-    s.paddles = this.rules.createPaddles({ mode, diff, slots: [...slots].sort() });
-    for (const p of s.paddles) {
-      p.y = clamp(p.y, p.minY, p.maxY);
-      p.target = p.y; // where the player's finger wants it
-      p.vy = 0; // measured speed, used for "traction"
-      p.prevY = p.y;
-    }
-    this.ais = new Map(s.paddles.filter((p) => !p.human).map((p) => [p.id, new ComputerPlayer(diff.ai, this.rng)]));
-
+    this.slots = [...slots].sort();
+    s.paddles = [];
+    this.rebuildPaddles(this.slots);
     s.matchId += 1;
     s.scores = { left: 0, right: 0 };
     s.winner = null;
     s.manualPause = false;
     s.missing = []; // the screen only starts a match with connected players
-    s.serveTo = this.rng() < 0.5 ? 'left' : 'right';
-    this.beginCountdown(false);
+    s.kickoff = null;
+    s.ball = this.centreBall();
+    // Coin toss: decides who serves (ping pong) or kicks off (soccer) first.
+    s.toss = { winner: this.rng() < 0.5 ? 'left' : 'right', timeLeft: TOSS_SECONDS };
+    s.phase = PHASE.TOSS;
+    return true;
+  }
+
+  /**
+   * (Re)build the paddles/rods for these players at the current level, keeping
+   * each one where it was (used after a level change, or when a kid joins mid-match).
+   */
+  rebuildPaddles(slots) {
+    const s = this.state;
+    const diff = DIFFICULTIES[s.settings.difficulty];
+    const old = new Map(s.paddles.map((p) => [p.id, p]));
+    s.paddles = this.rules.createPaddles({ mode: s.settings.mode, diff, slots });
+    for (const p of s.paddles) {
+      const was = old.get(p.id);
+      const at = (y, from) => p.minY + clamp((y - from.minY) / (from.maxY - from.minY || 1), 0, 1) * (p.maxY - p.minY);
+      p.y = was ? at(was.y, was) : clamp(COURT.height / 2, p.minY, p.maxY);
+      p.target = was ? at(was.target, was) : p.y; // where the player's finger wants it
+      p.vy = 0; // measured speed, used for "traction"
+      p.prevY = p.y;
+    }
+    const ai = this.soccer ? diff.soccerAi : diff.ai;
+    this.ais = new Map(s.paddles.filter((p) => !p.human).map((p) => [p.id, new ComputerPlayer(ai, this.rng)]));
+  }
+
+  /**
+   * A phone joined while a team-v-computer match is on: bring that kid into the
+   * team straight away (in soccer the two kids then get one rod each).
+   */
+  addPlayer(slot) {
+    const s = this.state;
+    if (!this.inMatch || s.settings.mode !== 'team' || this.slots.includes(slot)) return false;
+    this.slots = [...this.slots, slot].sort();
+    this.rebuildPaddles(this.slots);
+    if (s.kickoff) s.kickoff.slot = this.kickerFor(s.kickoff.side);
     return true;
   }
 
@@ -107,10 +166,14 @@ export class Engine {
     const s = this.state;
     s.phase = PHASE.LOBBY;
     s.paddles = [];
-    s.ball.visible = false;
+    s.ball = this.centreBall();
     s.manualPause = false;
     s.missing = [];
     s.winner = null;
+    s.toss = null;
+    s.kickoff = null;
+    s.heldFrom = null;
+    this.slots = [];
     this.ais = new Map();
   }
 
@@ -166,24 +229,24 @@ export class Engine {
   // Works out whether the game must be held (paused / waiting) or can carry on.
   updateHold() {
     const s = this.state;
-    const wasHeld = s.phase === PHASE.PAUSED || s.phase === PHASE.WAITING;
-    if (s.missing.length > 0) {
-      if (!wasHeld) this.rememberRally();
-      s.phase = PHASE.WAITING;
-    } else if (s.manualPause) {
-      if (!wasHeld) this.rememberRally();
-      s.phase = PHASE.PAUSED;
-    } else if (wasHeld) {
-      // Everyone is back: short countdown, then carry on.
-      this.beginCountdown(s.resumeBall);
+    const held = s.phase === PHASE.PAUSED || s.phase === PHASE.WAITING;
+    if (s.missing.length > 0 || s.manualPause) {
+      if (!held) s.heldFrom = s.phase;
+      s.phase = s.missing.length > 0 ? PHASE.WAITING : PHASE.PAUSED;
+    } else if (held) {
+      this.carryOn();
     }
   }
 
-  rememberRally() {
+  // Everyone is back: pick up where we left off.
+  carryOn() {
     const s = this.state;
-    // If the ball was moving, continue that rally after the pause. If we were
-    // mid-countdown, just redo the countdown and serve.
-    s.resumeBall = s.phase === PHASE.PLAYING || (s.phase === PHASE.COUNTDOWN && s.resumeBall);
+    const from = s.heldFrom;
+    s.heldFrom = null;
+    if (from === PHASE.TOSS) s.phase = PHASE.TOSS;
+    else if (from === PHASE.KICKOFF) this.beginKickoff(s.kickoff.side);
+    else if (from === PHASE.PLAYING) this.beginCountdown(true); // short countdown, then the rally continues
+    else this.beginCountdown(s.resumeBall);
   }
 
   beginCountdown(resumeBall) {
@@ -191,11 +254,11 @@ export class Engine {
     s.phase = PHASE.COUNTDOWN;
     s.countdown = COUNTDOWN_SECONDS;
     s.resumeBall = resumeBall;
-    if (!resumeBall) {
-      s.ball = { x: COURT.width / 2, y: COURT.height / 2, vx: 0, vy: 0, spin: 0, visible: true };
-    }
+    if (!resumeBall) s.ball = { ...this.centreBall(), visible: true };
     for (const ai of this.ais.values()) ai.reset();
   }
+
+  // ---------- serving & kick-off ----------
 
   serve() {
     const s = this.state;
@@ -213,6 +276,63 @@ export class Engine {
     };
   }
 
+  /** Which phone takes the kick-off for this side (null = the computer). */
+  kickerFor(side) {
+    const humans = this.state.paddles.filter((p) => p.side === side && p.slot);
+    if (humans.length === 0) return null;
+    // With two kids on a team, the attacker (front rod) kicks off.
+    return (humans.find((p) => p.lane === LANE.ATTACK) || humans[0]).slot;
+  }
+
+  beginKickoff(side) {
+    const s = this.state;
+    s.phase = PHASE.KICKOFF;
+    s.ball = { ...this.centreBall(), visible: true };
+    s.kickoff = {
+      side,
+      slot: this.kickerFor(side),
+      aim: side === 'left' ? 0 : Math.PI, // straight at the other team's goal
+      wait: KICKOFF.getReady,
+      timeLeft: KICKOFF.timeLimit,
+      cpuAim: null,
+    };
+    for (const ai of this.ais.values()) ai.reset();
+  }
+
+  /** The kicker is moving their finger round the aiming circle. */
+  aimKickoff(slot, angle) {
+    const k = this.state.kickoff;
+    if (this.state.phase !== PHASE.KICKOFF || !k || k.slot !== slot || !Number.isFinite(angle)) return false;
+    k.aim = this.clampKick(angle, k.side);
+    return true;
+  }
+
+  /** The kicker let go: kick the ball that way. */
+  kick(slot, angle, events = []) {
+    const s = this.state;
+    const k = s.kickoff;
+    if (s.phase !== PHASE.KICKOFF || !k || k.slot !== slot || k.wait > 0) return false;
+    if (Number.isFinite(angle)) k.aim = this.clampKick(angle, k.side);
+    this.launch(events);
+    return true;
+  }
+
+  // Kicks can go any way except too steeply up or down.
+  clampKick(angle, side) {
+    const b = { vx: Math.cos(angle), vy: Math.sin(angle) };
+    limitAngle(b, 1, side === 'left' ? 1 : -1);
+    return Math.atan2(b.vy, b.vx);
+  }
+
+  launch(events) {
+    const s = this.state;
+    const a = s.kickoff.aim;
+    s.ball = { x: COURT.width / 2, y: COURT.height / 2, vx: Math.cos(a) * this.speed, vy: Math.sin(a) * this.speed, spin: 0, visible: true };
+    events.push({ type: 'kickoff', side: s.kickoff.side, x: s.ball.x, y: s.ball.y });
+    s.kickoff = null;
+    s.phase = PHASE.PLAYING;
+  }
+
   // ---------- simulation ----------
 
   /** Advance the game by dt seconds. Returns events for sound/effects. */
@@ -228,9 +348,20 @@ export class Engine {
 
   tick(dt, events) {
     const s = this.state;
-    this.time += dt;
+    this.time = (this.time || 0) + dt;
 
-    if (s.phase === PHASE.COUNTDOWN) {
+    if (s.phase === PHASE.TOSS) {
+      s.toss.timeLeft -= dt;
+      if (s.toss.timeLeft <= 0) {
+        events.push({ type: 'toss', winner: s.toss.winner });
+        if (this.soccer) {
+          this.beginKickoff(s.toss.winner);
+        } else {
+          s.serveTo = other(s.toss.winner); // the toss winner serves
+          this.beginCountdown(false);
+        }
+      }
+    } else if (s.phase === PHASE.COUNTDOWN) {
       const before = Math.ceil(s.countdown);
       s.countdown -= dt;
       const after = Math.ceil(s.countdown);
@@ -241,25 +372,49 @@ export class Engine {
         s.resumeBall = false;
         events.push({ type: 'serve' });
       }
+    } else if (s.phase === PHASE.KICKOFF) {
+      this.tickKickoff(dt, events);
     }
 
-    const live = s.phase === PHASE.PLAYING || s.phase === PHASE.COUNTDOWN;
-    if (live) this.movePaddles(dt);
-    if (s.phase !== PHASE.PLAYING) return;
-    this.moveBall(dt, events);
+    if (LIVE.has(s.phase)) this.movePaddles(dt);
+    if (s.phase === PHASE.PLAYING) this.moveBall(dt, events);
+  }
+
+  tickKickoff(dt, events) {
+    const k = this.state.kickoff;
+    if (k.wait > 0) {
+      k.wait -= dt;
+      return;
+    }
+    if (k.slot === null) {
+      // The computer picks a spot to aim at, takes a moment, then kicks.
+      if (k.cpuAim === null) {
+        const base = k.side === 'left' ? 0 : Math.PI;
+        k.cpuAim = this.clampKick(base + (this.rng() - 0.5) * 1.2, k.side);
+        k.cpuTime = KICKOFF.cpuThinking;
+      }
+      const turn = Math.atan2(Math.sin(k.cpuAim - k.aim), Math.cos(k.cpuAim - k.aim)); // shortest way round
+      k.aim += turn * Math.min(1, dt * 4);
+      k.cpuTime -= dt;
+      if (k.cpuTime <= 0) { k.aim = k.cpuAim; this.launch(events); }
+      return;
+    }
+    k.timeLeft -= dt;
+    if (k.timeLeft <= 0) this.launch(events); // nobody kicked: off it goes where it was aimed
   }
 
   movePaddles(dt) {
     const s = this.state;
     const glide = PADDLE_GLIDE_SPEED * dt;
+    const ballLive = s.phase === PHASE.PLAYING;
     for (const p of s.paddles) {
       p.prevY = p.y;
       if (p.human) {
         // Glide to the finger: instant for normal swipes, smooths out big jumps.
         p.y += clamp(p.target - p.y, -glide, glide);
       } else {
-        // The computer keeps its paddle moving during countdowns too, like a human would.
-        this.ais.get(p.id)?.update(dt, s.ball, p, s.phase === PHASE.PLAYING);
+        // The computer keeps its paddle moving before the serve too, like a human would.
+        this.ais.get(p.id)?.update(dt, s.ball, p, ballLive);
       }
       p.y = clamp(p.y, p.minY, p.maxY);
       // Remember how fast it's moving, for traction when it hits the ball.
@@ -289,7 +444,7 @@ export class Engine {
 
     const scorer = this.rules.endZone(this, events);
     if (!scorer) return;
-    const loser = scorer === 'left' ? 'right' : 'left';
+    const loser = other(scorer);
     s.scores[scorer] += 1;
     ball.visible = false;
     events.push({ type: 'point', scorer, x: ball.x, y: ball.y });
@@ -297,6 +452,8 @@ export class Engine {
       s.phase = PHASE.OVER;
       s.winner = scorer;
       events.push({ type: 'win', winner: scorer });
+    } else if (this.soccer) {
+      this.beginKickoff(loser); // like real football: the team that let the goal in kicks off
     } else {
       s.serveTo = loser; // serve towards whoever just lost the point
       this.beginCountdown(false);
@@ -318,12 +475,16 @@ export class Engine {
   /** Small summary sent to the phones whenever it changes. */
   summary() {
     const s = this.state;
+    const k = s.kickoff;
     return {
       phase: s.phase,
       matchId: s.matchId,
       settings: { ...s.settings },
       scores: { ...s.scores },
       countdown: s.phase === PHASE.COUNTDOWN ? Math.ceil(s.countdown) : 0,
+      toss: s.phase === PHASE.TOSS ? { winner: s.toss.winner, done: s.toss.timeLeft < 0.8 } : null,
+      kickoff: s.phase === PHASE.KICKOFF ? { side: k.side, slot: k.slot, ready: k.wait <= 0, timeLeft: Math.ceil(k.timeLeft) } : null,
+      heldFrom: s.heldFrom,
       missing: [...s.missing],
       winner: s.winner,
       sides: Object.fromEntries(s.paddles.filter((p) => p.slot).map((p) => [p.slot, p.side])),
