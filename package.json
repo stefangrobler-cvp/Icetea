@@ -1,0 +1,29 @@
+{
+  "name": "icetea",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stefangrobler-cvp/Icetea.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/stefangrobler-cvp/Icetea/issues"
+  },
+  "homepage": "https://github.com/stefangrobler-cvp/Icetea#readme",
+  "dependencies": {
+    "express": "^5.2.1",
+    "qrcode": "^1.5.4",
+    "ws": "^8.22.0"
+  }
+}
