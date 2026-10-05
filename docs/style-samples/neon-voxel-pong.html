@@ -1,0 +1,917 @@
+<title>Neon Voxel Arcade</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Press+Start+2P&display=swap">
+<style>
+  /* Layout: TV-first. Menu = join panel left, players / game shelf / choices / START right.
+     Game = full-bleed voxel scene, scores live in the world, a thin HUD on top. One night-violet look. */
+  :root {
+    --night: #160934;
+    --violet: #2a1366;
+    --violet-2: #3b1d85;
+    --violet-3: #5a34b8;
+    --ink: #f4f2ff;
+    --muted: #b9a8e8;
+    --cyan: #00f0ff;
+    --pink: #ff2bd6;
+    --green: #39ff7a;
+    --orange: #ff9f1c;
+    --yellow: #ffe600;
+    --line: #7d8cff;
+    --pixel: "Press Start 2P", ui-monospace, monospace;
+    --round: "Fredoka", ui-rounded, system-ui, sans-serif;
+    color-scheme: dark;
+  }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--night); color: var(--ink); font-family: var(--round); overflow: hidden; }
+  canvas.px { image-rendering: pixelated; image-rendering: crisp-edges; display: block; }
+  button { font-family: var(--round); color: var(--ink); cursor: pointer; border: 0; }
+  button:focus-visible { outline: 3px solid var(--cyan); outline-offset: 3px; }
+
+  /* Pixel-stepped ribbon, as in the reference */
+  .ribbon {
+    --rc: var(--ink);
+    display: inline-block; padding: 9px 18px 8px; background: var(--rc); color: var(--night);
+    font: 11px/1.3 var(--pixel); letter-spacing: 1px; text-transform: uppercase; transform: rotate(-2.5deg);
+    clip-path: polygon(0 4px, 4px 4px, 4px 0, calc(100% - 4px) 0, calc(100% - 4px) 4px, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 4px calc(100% - 4px), 0 calc(100% - 4px));
+  }
+
+  /* ---------- menu ---------- */
+  #menu { position: fixed; inset: 0; overflow-y: auto; transition: opacity 0.45s, transform 0.45s; }
+  #menu.gone { opacity: 0; transform: scale(1.06); pointer-events: none; }
+  #bg { position: fixed; inset: 0; width: 100%; height: 100%; }
+  .menu-grid {
+    position: relative; min-height: 100%; box-sizing: border-box;
+    display: grid; grid-template-columns: minmax(250px, 300px) 1fr; gap: clamp(16px, 3vw, 40px);
+    padding: clamp(16px, 3vw, 36px) clamp(16px, 3.5vw, 48px); max-width: 1320px; margin: 0 auto; align-content: center;
+  }
+  .side { display: flex; flex-direction: column; gap: 22px; }
+  .logo { margin: 0; font: clamp(26px, 3.2vw, 40px)/1.15 var(--pixel); color: var(--ink); text-shadow: 0 0 18px var(--pink), 3px 3px 0 var(--pink); }
+  .logo span { color: var(--cyan); text-shadow: 0 0 18px var(--cyan), 3px 3px 0 var(--violet-3); }
+  .join {
+    background: var(--violet); padding: 18px; display: flex; flex-direction: column; align-items: center; gap: 12px;
+    box-shadow: 0 0 0 4px var(--violet-2), 0 0 32px -6px var(--cyan); border-radius: 6px;
+  }
+  .qr { background: var(--ink); padding: 10px; border-radius: 4px; position: relative; }
+  .qr canvas { width: clamp(150px, 15vw, 190px); height: auto; }
+  .qr .ribbon { position: absolute; left: 50%; bottom: -14px; transform: translateX(-50%) rotate(-3deg); --rc: var(--yellow); font-size: 8px; padding: 6px 10px; white-space: nowrap; }
+  .join p { margin: 8px 0 0; color: var(--muted); font-size: 15px; text-align: center; }
+  .join p b { color: var(--ink); }
+  .code { display: flex; gap: 8px; }
+  .code span {
+    width: 44px; height: 52px; display: grid; place-items: center; font: 22px var(--pixel); color: var(--night);
+    background: var(--cyan); box-shadow: inset 0 -6px 0 rgba(0, 0, 0, 0.22), 0 0 18px -2px var(--cyan); border-radius: 4px;
+  }
+
+  .main { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+  .label { font: 10px var(--pixel); color: var(--muted); letter-spacing: 1px; margin: 0 0 10px; }
+  .players { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .slot {
+    --c: var(--muted); display: flex; align-items: center; gap: 12px; padding: 10px 12px; min-height: 64px;
+    background: var(--violet); border-radius: 6px; box-shadow: 0 0 0 3px var(--c), 0 0 22px -6px var(--c);
+  }
+  .slot canvas { width: 46px; height: 46px; filter: drop-shadow(0 0 6px var(--c)); flex: none; }
+  .slot b { display: block; font-size: 18px; }
+  .slot small { color: var(--c); font-size: 13px; font-weight: 600; }
+  .slot.empty { background: transparent; box-shadow: inset 0 0 0 3px var(--violet-2); }
+  .slot.empty .dot { width: 46px; height: 46px; display: grid; place-items: center; border: 3px dashed var(--violet-3); border-radius: 6px; color: var(--violet-3); font: 14px var(--pixel); flex: none; }
+  .slot.empty small { color: var(--muted); }
+
+  .shelf { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .card {
+    --t: var(--violet-2); --c: var(--cyan);
+    position: relative; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 14px; text-align: left;
+    padding: 14px; background: var(--t); border-radius: 6px; box-shadow: inset 0 -6px 0 rgba(0, 0, 0, 0.25);
+    transition: transform 0.18s cubic-bezier(.3, 1.6, .5, 1), box-shadow 0.18s;
+  }
+  .card .art { width: 64px; height: 64px; display: grid; place-items: center; background: rgba(0, 0, 0, 0.22); border-radius: 4px; }
+  .card .art canvas { width: 52px; height: 52px; filter: drop-shadow(0 0 6px var(--c)); }
+  .card b { display: block; font-size: 20px; line-height: 1.15; }
+  .pills { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+  .pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 4px; background: rgba(0, 0, 0, 0.28); font-size: 14px; font-weight: 600; color: var(--ink); }
+  .pill canvas { width: 14px; height: 14px; }
+  .card.on { transform: translateY(-6px); box-shadow: 0 0 0 4px var(--c), 0 0 30px -4px var(--c), inset 0 -6px 0 rgba(0, 0, 0, 0.25); }
+  .card.on .art canvas { animation: bob 1.2s ease-in-out infinite; }
+  .card .ribbon { position: absolute; right: -6px; top: -12px; --rc: var(--c); font-size: 8px; padding: 6px 9px; opacity: 0; transition: opacity 0.15s; }
+  .card.on .ribbon { opacity: 1; }
+  @keyframes bob { 50% { transform: translateY(-4px); } }
+
+  .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .seg { display: flex; gap: 8px; }
+  .seg button {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 6px;
+    background: var(--violet); border-radius: 6px; font-size: 16px; font-weight: 600; box-shadow: inset 0 -5px 0 rgba(0, 0, 0, 0.25);
+  }
+  .seg .icons { display: flex; align-items: center; gap: 4px; height: 34px; }
+  .seg canvas { width: 30px; height: 30px; }
+  .seg .vs { font: 9px var(--pixel); color: var(--yellow); }
+  .seg button.on { background: var(--violet-3); box-shadow: 0 0 0 3px var(--ink), 0 0 22px -4px var(--line), inset 0 -5px 0 rgba(0, 0, 0, 0.25); }
+
+  .start {
+    font: clamp(20px, 2.4vw, 28px) var(--pixel); letter-spacing: 3px; color: var(--night); padding: 22px;
+    background: var(--green); border-radius: 6px;
+    box-shadow: inset 0 -8px 0 rgba(0, 0, 0, 0.25), 0 0 40px -6px var(--green);
+    animation: breathe 1.8s ease-in-out infinite;
+  }
+  .start:active { transform: translateY(4px); box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.25), 0 0 40px -6px var(--green); }
+  @keyframes breathe { 50% { box-shadow: inset 0 -8px 0 rgba(0, 0, 0, 0.25), 0 0 60px 0 var(--green); } }
+  .sample-tag { position: fixed; right: 16px; bottom: calc(env(safe-area-inset-bottom, 0px) + 14px); --rc: var(--yellow); font-size: 9px; z-index: 5; pointer-events: none; }
+
+  /* ---------- game ---------- */
+  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  .hud { position: fixed; left: 0; right: 0; bottom: 0; padding: 0 16px calc(env(safe-area-inset-bottom, 0px) + 12px); align-items: end; display: flex; justify-content: space-between; gap: 10px; pointer-events: none; }
+  .hud button { pointer-events: auto; display: inline-flex; align-items: center; gap: 10px; padding: 10px 16px; background: rgba(22, 9, 52, 0.7); border-radius: 6px; font-size: 16px; font-weight: 600; box-shadow: 0 0 0 3px var(--violet-3); }
+  .hud button canvas { width: 20px; height: 20px; }
+  .hint { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 74px); transform: translateX(-50%); transition: opacity 0.5s; pointer-events: none; }
+  .hint .ribbon { --rc: var(--cyan); font-size: 10px; white-space: nowrap; }
+  .toast { position: fixed; left: 50%; top: 18%; transform: translateX(-50%); pointer-events: none; transition: opacity 0.4s; }
+  .toast .ribbon { --rc: var(--yellow); font-size: 11px; white-space: nowrap; }
+
+  .results { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(22, 9, 52, 0.55); }
+  .results .box { display: flex; flex-direction: column; align-items: center; gap: 18px; text-align: center; animation: drop 0.55s cubic-bezier(.3, 1.6, .5, 1); }
+  @keyframes drop { from { transform: translateY(-60px) scale(0.7); opacity: 0; } }
+  .results .crowned { position: relative; }
+  .results .crowned canvas.who { width: 150px; height: 150px; filter: drop-shadow(0 0 18px var(--c)); }
+  .results .crowned canvas.crown { position: absolute; left: 50%; top: -46px; width: 72px; height: 48px; transform: translateX(-50%) rotate(-8deg); filter: drop-shadow(0 0 10px var(--yellow)); }
+  .results .ribbon { font-size: clamp(14px, 2vw, 20px); --rc: var(--c); }
+  .final { font: clamp(28px, 4vw, 44px) var(--pixel); display: flex; gap: 18px; align-items: center; }
+  .final i { font-style: normal; color: var(--muted); font-size: 0.6em; }
+  .results .row { display: flex; gap: 12px; }
+  .results .row button { display: inline-flex; align-items: center; gap: 10px; padding: 18px 26px; border-radius: 6px; font-size: 20px; font-weight: 700; background: var(--violet-3); box-shadow: inset 0 -6px 0 rgba(0, 0, 0, 0.25); }
+  .results .row button.go { background: var(--green); color: var(--night); box-shadow: inset 0 -6px 0 rgba(0, 0, 0, 0.25), 0 0 30px -4px var(--green); }
+  .results .row canvas { width: 24px; height: 24px; }
+
+  body.playing .sample-tag { right: auto; left: 50%; transform: translateX(-50%) rotate(-2.5deg); }
+  [hidden] { display: none !important; }
+  @media (max-width: 900px) {
+    .menu-grid { grid-template-columns: 1fr; align-content: start; }
+    .side { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; }
+    .shelf { grid-template-columns: repeat(2, 1fr); }
+    .players { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 560px) {
+    .join { width: 100%; box-sizing: border-box; }
+    .choices { grid-template-columns: 1fr; }
+    .card { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+    .pills { justify-content: center; }
+    .hint .ribbon { font-size: 8px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .start, .card.on .art canvas { animation: none; } }
+</style>
+
+<!-- ===== Menu (the big screen's game list) ===== -->
+<section id="menu" aria-label="Game menu">
+  <canvas id="bg" aria-hidden="true"></canvas>
+  <div class="menu-grid">
+    <div class="side">
+      <h1 class="logo">NEON<br><span>ARCADE</span></h1>
+      <div class="join">
+        <div class="qr"><canvas id="qr" class="px" aria-label="Join code (sample)"></canvas><span class="ribbon">Sample code</span></div>
+        <p>Scan with a phone, or go to <b>arcade.home</b> and type</p>
+        <div class="code" aria-label="Room code K W Z P"><span>K</span><span>W</span><span>Z</span><span>P</span></div>
+      </div>
+    </div>
+    <div class="main">
+      <div><p class="label">PLAYERS</p><div class="players" id="players"></div></div>
+      <div><p class="label">GAME</p><div class="shelf" id="shelf"></div></div>
+      <div class="choices">
+        <div><p class="label">WHO PLAYS</p><div class="seg" id="modes"></div></div>
+        <div><p class="label">LEVEL</p><div class="seg" id="levels"></div></div>
+      </div>
+      <button id="start" class="start">START</button>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Game ===== -->
+<canvas id="game" hidden aria-label="Voxel Pong match on a neon court"></canvas>
+<div class="hud" id="hud" hidden>
+  <button id="back"><canvas class="px" id="ic-back"></canvas>Games</button>
+  <button id="mute"><canvas class="px" id="ic-sound"></canvas><span id="mute-t">Sound on</span></button>
+</div>
+<div class="hint" id="hint" hidden><span class="ribbon">Drag up and down to move the cyan paddle</span></div>
+<div class="toast" id="toast" hidden><span class="ribbon" id="toast-t"></span></div>
+<div class="results" id="results" hidden>
+  <div class="box">
+    <div class="crowned"><canvas class="px crown" id="crown"></canvas><canvas class="px who" id="winner"></canvas></div>
+    <span class="ribbon" id="win-t"></span>
+    <div class="final" id="final"></div>
+    <div class="row">
+      <button class="go" id="again"><canvas class="px" id="ic-again"></canvas>Play again</button>
+      <button id="to-menu"><canvas class="px" id="ic-grid"></canvas>Games</button>
+    </div>
+  </div>
+</div>
+<span class="ribbon sample-tag">Style sample · not the real game</span>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ================= pixel art: drawn flat in the menu, built from blocks in the game =================
+  const PAL = {
+    k: '#14082e', w: '#f4f2ff', o: '#ff9f1c', r: '#b8560a', c: '#00f0ff', C: '#0090a8', m: '#ff2bd6', M: '#a3168a',
+    g: '#39ff7a', G: '#159a48', l: '#c9ffd9', y: '#ffe600', Y: '#b39d00', p: '#a77bff', P: '#6a3fd0', b: '#e2d4ff',
+    n: '#9a6440', t: '#e8be92', v: '#7d8cff', s: '#5a34b8',
+  };
+  const ART = {
+    fox: [
+      '.o........o.', '.oo......oo.', '.oro....oro.', '.oooooooooo.', 'oooooooooooo', 'ookoooooooko',
+      'oooowwwwoooo', '.owwwwwwwwo.', '..wwwkkwww..', '...wwwwww...', '....wwww....', '............'],
+    owl: [
+      '.P........P.', '.PP......PP.', '.pppppppppp.', 'pppppppppppp', 'pwwwppppwwwp', 'wwkwwppwwkww',
+      'pwwwpyypwwwp', 'ppppyyyypppp', 'pbbbbyybbbbp', '.pbbbbbbbbp.', '..pbbbbbbp..', '...pppppp...'],
+    frog: [
+      '..gg....gg..', '.gwwg..gwwg.', '.gwkg..gkwg.', '.gggggggggg.', 'gggggggggggg', 'gggggggggggg',
+      'gkggggggggkg', 'ggkkkkkkkkgg', '.gglllllllg.', '..gllllllg..', '...gggggg...', '............'],
+    bear: [
+      '.nn......nn.', 'nnnn....nnnn', 'nnnnnnnnnnnn', '.nnnnnnnnnn.', '.nknnnnnnkn.', '.nnnnnnnnnn.',
+      '.nnnttttnnn.', '.nnttkkttnn.', '.nnnttttnnn.', '..nnnnnnnn..', '...nnnnnn...', '............'],
+    robot: [
+      '.....yy.....', '.....kk.....', '.yyyyyyyyyy.', '.yyyyyyyyyy.', '.ykkkkkkkky.', '.ykcckkccky.',
+      '.ykcckkccky.', '.ykkkkkkkky.', '.yyyyyyyyyy.', '.yykkkkkkyy.', '.yyyyyyyyyy.', '............'],
+    crown: ['y...y...y', 'yy.yyy.yy', 'yyyyyyyyy', 'yyyyyyyyy', 'ymyycyymy', 'yyyyyyyyy'],
+    pong: [
+      '............', '.c........m.', '.c........m.', '.c........m.', '.c...ww...m.', '.c...ww...m.',
+      '.c........m.', '.c........m.', '.c........m.', '............', '..v.v.v.v...', '............'],
+    soccer: [
+      '....wwww....', '..wwkkwwww..', '.wwkkkkwwww.', '.wwwkkwwwkw.', 'wwwwwwwwkkkw', 'wkwwwwwwwkww',
+      'wkkwwwkwwwww', 'wkwwwkkkwwww', '.wwwwwkwwww.', '.wwkwwwwkkw.', '..wwwwwwww..', '....wwww....'],
+    stack: [
+      '....oooo....', '....oooo....', '...gggg.....', '...gggg.....', '.....mmmm...', '.....mmmm...',
+      '...cccc.....', '...cccc.....', '..vvvvvvvv..', '..vvvvvvvv..', '............', '............'],
+    storm: [
+      '.......yyy..', '......yyy...', '.....yyy....', '....yyy.....', '...yyyyyyy..', '.......yyy..',
+      '......yyy...', '.....yyy....', '....yy......', '...y........', '............', '............'],
+    hunt: [
+      '..cccc......', '.c....c.....', 'c..ww..c....', 'c.w....c....', 'c......c....', 'c......c....',
+      '.c....c.....', '..ccccmm....', '.......mm...', '........mm..', '.........mm.', '............'],
+    synth: [
+      '............', '.cccc..mmmm.', '.cccc..mmmm.', '.cccc..mmmm.', '.cccc..mmmm.', '............',
+      '.yyyy..gggg.', '.yyyy..gggg.', '.yyyy..gggg.', '.yyyy..gggg.', '............', '............'],
+    turtle: ['....gggg....', '...gGggGg...', '..ggggggggw.', '..gGggggGgwk', '..gggggggg..', '..w..w..w...'],
+    rabbit: ['..w..w...', '..w..w...', '..ww.ww..', '..wwwww..', '.wwkwwkw.', '.wwwmmww.', '..wwwww..', '.wwwwwww.', '.ww.w.ww.'],
+    rocket: ['....w....', '...wcw...', '...www...', '...wcw...', '..wwwww..', '..wwwww..', '.mww.wwm.', '.m.ooo.m.', '....o....'],
+    person: ['.ww.', '.ww.', 'wwww', '.ww.', 'w..w'],
+    clock: ['.www.', 'w.w.w', 'w.ww.', 'w...w', '.www.'],
+    back: ['...w..', '..ww..', '.wwwww', 'wwwwww', '.wwwww', '..ww..', '...w..'],
+    sound: ['...w....', '..ww.w..', 'wwww..w.', 'wwww.ww.', 'wwww..w.', '..ww.w..', '...w....'],
+    mutei: ['...w....', '..ww....', 'wwww.w.w', 'wwww..w.', 'wwww.w.w', '..ww....', '...w....'],
+    again: ['.kkkk.', 'k....k', 'k...kkk', 'k....k.', 'k.....', '.kkkk.'],
+    grid: ['ww.ww', 'ww.ww', '.....', 'ww.ww', 'ww.ww'],
+  };
+  function pixel(canvas, rows, tint) {
+    const w = Math.max(...rows.map((r) => r.length)), h = rows.length, s = 8;
+    canvas.width = w * s; canvas.height = h * s;
+    const ctx = canvas.getContext('2d');
+    rows.forEach((row, y) => [...row].forEach((ch, x) => {
+      if (ch === '.') return;
+      ctx.fillStyle = tint && ch !== 'k' ? tint : PAL[ch];
+      ctx.fillRect(x * s, y * s, s, s);
+    }));
+    return canvas;
+  }
+  const px = (rows, tint) => { const c = pixel(document.createElement('canvas'), rows, tint); c.className = 'px'; return c; };
+
+  // ================= menu =================
+  const GAMES = [
+    { id: 'pong', name: 'Pong', art: 'pong', ages: '4+', players: '1–2', mins: '2–5', tint: '#3b1d85', c: '#00f0ff' },
+    { id: 'soccer', name: 'Soccer', art: 'soccer', ages: '5+', players: '1–2', mins: '3–5', tint: '#0f5a3c', c: '#39ff7a' },
+    { id: 'stack', name: 'Block Stacker', art: 'stack', ages: '4+', players: '1–4', mins: '1–3', tint: '#163a8a', c: '#7d8cff' },
+    { id: 'storm', name: 'Hazard Storm', art: 'storm', ages: '4+', players: '1–4', mins: '1–3', tint: '#6a3410', c: '#ff9f1c' },
+    { id: 'hunt', name: 'Cyber Hunt', art: 'hunt', ages: '4+', players: '1–4', mins: '2–4', tint: '#0b4a5c', c: '#00f0ff' },
+    { id: 'synth', name: 'Synth Sequence', art: 'synth', ages: '4+', players: '1–4', mins: '2–4', tint: '#5c0f52', c: '#ff2bd6' },
+  ];
+  const PLAYERS = [
+    { name: 'Mia', art: 'fox', c: '#00f0ff' },
+    { name: 'Leo', art: 'owl', c: '#ff2bd6' },
+    null, null,
+  ];
+  const sel = { game: 'pong', mode: 'versus', level: 'easy' };
+
+  $('players').append(...PLAYERS.map((p, i) => {
+    const d = document.createElement('div');
+    if (p) {
+      d.className = 'slot'; d.style.setProperty('--c', p.c);
+      d.append(px(ART[p.art]));
+      d.insertAdjacentHTML('beforeend', `<div><b>${p.name}</b><small>Ready</small></div>`);
+    } else {
+      d.className = 'slot empty';
+      d.innerHTML = `<span class="dot">${i + 1}</span><div><small>Scan to join</small></div>`;
+    }
+    return d;
+  }));
+
+  $('shelf').append(...GAMES.map((g) => {
+    const b = document.createElement('button');
+    b.className = 'card'; b.dataset.id = g.id;
+    b.style.setProperty('--t', g.tint); b.style.setProperty('--c', g.c);
+    const art = document.createElement('span'); art.className = 'art'; art.append(px(ART[g.art]));
+    const info = document.createElement('span');
+    info.innerHTML = `<b>${g.name}</b><span class="pills"><span class="pill">${g.ages}</span><span class="pill" data-i="person">${g.players}</span><span class="pill" data-i="clock">${g.mins} min</span></span>`;
+    info.querySelectorAll('[data-i]').forEach((el) => el.prepend(px(ART[el.dataset.i])));
+    b.append(art, info);
+    b.insertAdjacentHTML('beforeend', '<span class="ribbon">Picked</span>');
+    b.addEventListener('click', () => { sel.game = g.id; drawMenu(); blip(520, 0.06); });
+    return b;
+  }));
+
+  const MODES = [
+    { id: 'versus', label: '1 v 1', icons: ['fox', 'vs', 'owl'] },
+    { id: 'team', label: 'Team v computer', icons: ['fox', 'owl', 'vs', 'robot'] },
+  ];
+  const LEVELS = [
+    { id: 'easy', label: 'Easy', art: 'turtle', speed: 10 },
+    { id: 'medium', label: 'Medium', art: 'rabbit', speed: 13 },
+    { id: 'hard', label: 'Hard', art: 'rocket', speed: 16 },
+  ];
+  function segButton(group, item, icons) {
+    const b = document.createElement('button');
+    b.dataset.id = item.id;
+    const row = document.createElement('span'); row.className = 'icons';
+    icons.forEach((i) => {
+      if (i === 'vs') row.insertAdjacentHTML('beforeend', '<span class="vs">VS</span>');
+      else row.append(px(ART[i]));
+    });
+    b.append(row, document.createTextNode(item.label));
+    b.addEventListener('click', () => { sel[group] = item.id; drawMenu(); blip(440, 0.06); });
+    return b;
+  }
+  $('modes').append(...MODES.map((m) => segButton('mode', m, m.icons)));
+  $('levels').append(...LEVELS.map((l) => segButton('level', l, [l.art])));
+
+  function drawMenu() {
+    document.querySelectorAll('.card').forEach((c) => c.classList.toggle('on', c.dataset.id === sel.game));
+    $('modes').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.id === sel.mode));
+    $('levels').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.id === sel.level));
+  }
+  drawMenu();
+
+  // A made-up join code drawn like a QR code (it doesn't open anything).
+  {
+    const n = 25, rows = [];
+    let sd = 11;
+    const rand = () => ((sd = (sd * 16807) % 2147483647) / 2147483647);
+    for (let y = 0; y < n; y++) {
+      let r = '';
+      for (let x = 0; x < n; x++) {
+        const finder = (fx, fy) => x >= fx && x < fx + 7 && y >= fy && y < fy + 7;
+        const f = finder(0, 0) ? [0, 0] : finder(n - 7, 0) ? [n - 7, 0] : finder(0, n - 7) ? [0, n - 7] : null;
+        if (f) {
+          const dx = x - f[0], dy = y - f[1];
+          r += (dx === 0 || dy === 0 || dx === 6 || dy === 6 || (dx >= 2 && dx <= 4 && dy >= 2 && dy <= 4)) ? 'k' : '.';
+        } else r += rand() < 0.48 ? 'k' : '.';
+      }
+      rows.push(r);
+    }
+    pixel($('qr'), rows);
+    $('qr').getContext('2d');
+  }
+
+  // Menu background: a field of neon voxel flowers, like the reference's meadow, gently twinkling.
+  const bg = $('bg'), bgx = bg.getContext('2d');
+  const flowers = Array.from({ length: 70 }, (_, i) => ({ x: (i * 0.618034) % 1, y: (i * 0.4142 + 0.13 * (i % 3)) % 1, c: ['#00f0ff', '#ff2bd6', '#39ff7a', '#ff9f1c', '#7d8cff'][i % 5], s: 0.6 + ((i * 7) % 5) / 5, ph: i }));
+  function drawBg(t) {
+    const w = (bg.width = innerWidth), h = (bg.height = innerHeight);
+    bgx.fillStyle = '#160934'; bgx.fillRect(0, 0, w, h);
+    const tile = 64;
+    bgx.fillStyle = 'rgba(90, 52, 184, 0.10)';
+    for (let y = 0; y < h; y += tile) for (let x = ((y / tile) % 2) * (tile / 2); x < w; x += tile) bgx.fillRect(x, y, tile / 2, tile / 2);
+    for (const f of flowers) {
+      const u = 5 * f.s, x = f.x * w, y = f.y * h, glow = 0.45 + 0.35 * Math.sin(t / 900 + f.ph);
+      bgx.globalAlpha = glow;
+      bgx.fillStyle = f.c;
+      bgx.fillRect(x, y - u, u, u); bgx.fillRect(x - u, y, u, u); bgx.fillRect(x + u, y, u, u); bgx.fillRect(x, y + u, u, u);
+      bgx.fillStyle = '#ffe600'; bgx.fillRect(x, y, u, u);
+    }
+    bgx.globalAlpha = 1;
+  }
+
+  // ================= sound (starts with the START tap) =================
+  let audio = null, muted = false;
+  function blip(freq, len = 0.09, type = 'square', vol = 0.06) {
+    if (!audio || muted) return;
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, audio.currentTime);
+    o.frequency.exponentialRampToValueAtTime(freq * 1.5, audio.currentTime + len);
+    g.gain.setValueAtTime(vol, audio.currentTime); g.gain.exponentialRampToValueAtTime(0.0008, audio.currentTime + len);
+    o.connect(g).connect(audio.destination); o.start(); o.stop(audio.currentTime + len + 0.02);
+  }
+  const tune = (notes, gap = 0.09) => notes.forEach((f, i) => setTimeout(() => blip(f, 0.14, 'square', 0.05), i * gap * 1000));
+
+  // ================= game: the voxel court =================
+  const canvas = $('game');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color('#1c0c44');
+  const camera = new THREE.PerspectiveCamera(30, 1, 0.5, 300);
+
+  let composer = null, bloom = null;
+  if (THREE.EffectComposer && THREE.UnrealBloomPass) {
+    composer = new THREE.EffectComposer(renderer);
+    composer.addPass(new THREE.RenderPass(scene, camera));
+    bloom = new THREE.UnrealBloomPass(new THREE.Vector2(512, 512), 0.7, 0.4, 0.8);
+    composer.addPass(bloom);
+  }
+
+  scene.add(new THREE.HemisphereLight('#c9b8ff', '#2a1366', 0.68));
+  const sun = new THREE.DirectionalLight('#ffffff', 0.62);
+  sun.position.set(-10, 26, 12);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.radius = 4;
+  Object.assign(sun.shadow.camera, { left: -30, right: 30, top: 24, bottom: -24, near: 1, far: 80 });
+  scene.add(sun);
+
+  const lam = {};
+  const lambert = (c) => lam[c] || (lam[c] = new THREE.MeshLambertMaterial({ color: c }));
+  const basic = (c, extra = {}) => new THREE.MeshBasicMaterial({ color: c, ...extra });
+  const unit = new THREE.BoxGeometry(1, 1, 1);
+  function box(w, h, d, c, x, y, z, mat) {
+    const m = new THREE.Mesh(unit, mat || lambert(c));
+    m.scale.set(w, h, d); m.position.set(x, y, z);
+    m.castShadow = m.receiveShadow = true;
+    scene.add(m);
+    return m;
+  }
+
+  // Ground with a sunken court, as in the reference: the walls of the dip catch soft shadows.
+  const CX = 10.6, CZ = 6.4, FLOOR = -0.7;
+  const GROUND = '#2a1366', FLOOR_C = '#20104f';
+  box(80, 2, 40, GROUND, 0, -1, -CZ - 20);
+  box(80, 2, 40, GROUND, 0, -1, CZ + 20);
+  box(40, 2, CZ * 2, GROUND, -CX - 20 - 0.9, -1, 0);
+  box(40, 2, CZ * 2, GROUND, CX + 20 + 0.9, -1, 0);
+  box(CX * 2, 1, CZ * 2, FLOOR_C, 0, FLOOR - 0.5, 0);
+  // Goal gutters at each end: the ball drops in when someone scores.
+  const gutters = ['#00f0ff', '#ff2bd6'].map((c, i) => {
+    const s = i ? 1 : -1;
+    box(0.9, 1.4, CZ * 2, '#12082e', s * (CX + 0.45), FLOOR - 1.2, 0);
+    return box(0.9, 0.06, CZ * 2 - 0.4, c, s * (CX + 0.45), FLOOR - 0.45, 0, basic(c, { transparent: true, opacity: 0.55 }));
+  });
+  // Neon rim around the dip, and a dashed centre line made of little blocks.
+  const LINE = '#7d8cff';
+  const rim = basic(LINE);
+  box(CX * 2 + 1.8, 0.08, 0.14, LINE, 0, 0.04, -CZ, rim); box(CX * 2 + 1.8, 0.08, 0.14, LINE, 0, 0.04, CZ, rim);
+  for (let z = -CZ + 0.8; z < CZ; z += 1.1) box(0.18, 0.08, 0.55, '#9d8cff', 0, FLOOR + 0.04, z, basic('#6f5bd8'));
+
+  // Scenery, deliberately lopsided: a block heap and voxel pines top-left, a small heap bottom-right, flowers scattered.
+  const ROCK = ['#3b1d85', '#4a27a3', '#341a78'];
+  [[-17, -10, 3, 2.2, 3], [-14.6, -11.4, 2, 1.4, 2], [-19, -8, 2, 3.2, 2], [-15.4, -9, 1.2, 0.8, 1.2], [15.5, 9.4, 2.4, 1.4, 2], [17.4, 10.6, 1.4, 0.9, 1.4], [6, -10.5, 1.2, 0.8, 1.2]]
+    .forEach(([x, z, w, h, d], i) => box(w, h, d, ROCK[i % 3], x, h / 2, z).rotation.y = (i % 2) * 0.3);
+  function pine(x, z, s) {
+    [[1.6, 1.2], [1.2, 1], [0.8, 0.9], [0.4, 0.8]].forEach(([w, h], i) => box(w * s, h * s, w * s, i % 2 ? '#0f8f8a' : '#0b6f73', x, (0.6 + i * 0.95) * s, z));
+  }
+  pine(-19.5, -4.5, 1.15); pine(-21, -1, 0.85); pine(16.5, -9.5, 1); pine(19.5, -7, 0.7);
+  const FLOWER_C = ['#00f0ff', '#ff2bd6', '#39ff7a', '#ff9f1c'];
+  const flowerSpots = [[-13, 8.5], [-8, 9.5], [-2, 10.4], [4, 8.8], [10, 9.6], [13.5, -8.4], [-6, -9.2], [1, -10.8], [9.6, -9.8], [-17.5, 4.5], [17, 3], [-12, -8], [20.5, 0.5]];
+  flowerSpots.forEach(([x, z], i) => {
+    const c = FLOWER_C[i % 4], m = basic(c), s = 0.32;
+    [[0, -1], [-1, 0], [1, 0], [0, 1]].forEach(([dx, dz]) => box(s, s, s, c, x + dx * s, s / 2, z + dz * s, m));
+    box(s, s * 1.2, s, '#ffe600', x, s * 0.6, z, basic('#ffe600'));
+  });
+
+  // ---------- voxel characters, built from the same pixel art as the menu ----------
+  function voxels(rows, size, depth, tint) {
+    const cells = [];
+    rows.forEach((row, y) => [...row].forEach((ch, x) => { if (ch !== '.') cells.push([x, y, ch]); }));
+    const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(size * 0.98, size * 0.98, size * 0.98), new THREE.MeshLambertMaterial({ color: '#d6d0ec' }), cells.length * depth);
+    const w = rows[0].length, h = rows.length, m4 = new THREE.Matrix4(), col = new THREE.Color();
+    let i = 0;
+    for (const [x, y, ch] of cells) for (let d = 0; d < depth; d++) {
+      m4.makeTranslation((x - w / 2 + 0.5) * size, (h - 1 - y) * size + size / 2, (d - (depth - 1) / 2) * size);
+      mesh.setMatrixAt(i, m4);
+      mesh.setColorAt(i, col.set(tint && ch !== 'k' ? tint : PAL[ch]));
+      i++;
+    }
+    mesh.castShadow = true;
+    const g = new THREE.Group(); g.add(mesh);
+    return g;
+  }
+  function character(art, glow) {
+    const g = voxels(ART[art], 0.28, 3);
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.6, 0.3, 8), basic(glow));
+    base.position.y = 0.15; g.add(base);
+    g.children[0].position.y = 0.3;
+    g.rotation.x = -0.55;
+    g.scale.setScalar(0.82);
+    scene.add(g);
+    return { g, home: new THREE.Vector3(), jump: 0, sad: 0, ph: Math.random() * 6 };
+  }
+
+  // ---------- paddles: columns of neon blocks ----------
+  const PX = 9.4, HALF = 2.4, R = 0.42, CUBE = 0.9;
+  function makePaddle(color, side) {
+    const g = new THREE.Group();
+    const blocks = [];
+    for (let k = 0; k < 5; k++) {
+      const b = new THREE.Mesh(unit, new THREE.MeshLambertMaterial({ color, emissive: color, emissiveIntensity: 0.55 }));
+      b.scale.setScalar(CUBE); b.position.set(0, 0, (k - 2) * 0.96); b.castShadow = true;
+      g.add(b); blocks.push(b);
+    }
+    g.position.set(side * PX, FLOOR + CUBE / 2, 0);
+    scene.add(g);
+    return { g, blocks, z: 0, target: 0, wave: -1, color, side };
+  }
+
+  // ---------- ball, glow, trail, aim dots, debris, rings ----------
+  const ball = new THREE.Mesh(new THREE.IcosahedronGeometry(R, 1), new THREE.MeshLambertMaterial({ color: '#ffffff', emissive: '#ffffff', emissiveIntensity: 0.65 }));
+  ball.castShadow = true; scene.add(ball);
+  const glowTex = (() => {
+    const c = document.createElement('canvas'); c.width = c.height = 64;
+    const x = c.getContext('2d'), gr = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+    gr.addColorStop(0, 'rgba(255,255,255,0.9)'); gr.addColorStop(0.35, 'rgba(160,240,255,0.35)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    x.fillStyle = gr; x.fillRect(0, 0, 64, 64);
+    return new THREE.CanvasTexture(c);
+  })();
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+  halo.scale.setScalar(3.2); scene.add(halo);
+  const trail = Array.from({ length: 9 }, (_, i) => {
+    const m = new THREE.Mesh(unit, basic('#bfefff', { transparent: true, opacity: 0.4 - i * 0.04 }));
+    m.scale.setScalar(0.5 - i * 0.045); scene.add(m); return m;
+  });
+  const trailPos = [];
+  const dots = Array.from({ length: 18 }, () => {
+    const m = new THREE.Mesh(unit, basic('#ffffff', { transparent: true, opacity: 0.85 }));
+    m.scale.setScalar(0.2); m.visible = false; scene.add(m); return m;
+  });
+  const debris = Array.from({ length: 110 }, () => {
+    const m = new THREE.Mesh(unit, basic('#ffffff', { transparent: true }));
+    m.visible = false; m.castShadow = true; scene.add(m);
+    return { m, v: new THREE.Vector3(), life: 0, max: 1, s: 0.25 };
+  });
+  function burst(x, y, z, color, n, power, up = 5, size = 0.26) {
+    let k = 0;
+    for (const d of debris) {
+      if (d.life > 0) continue;
+      d.m.material.color.set(color); d.m.position.set(x, y, z); d.m.visible = true;
+      d.v.set((Math.random() * 2 - 1) * power, Math.random() * up + 1.5, (Math.random() * 2 - 1) * power);
+      d.max = d.life = 0.5 + Math.random() * 0.6; d.s = size * (0.6 + Math.random() * 0.8);
+      if (++k >= n) break;
+    }
+  }
+  const rings = Array.from({ length: 4 }, () => {
+    const m = new THREE.Mesh(new THREE.RingGeometry(0.8, 1, 4), basic('#ffffff', { transparent: true, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false }));
+    m.rotation.x = -Math.PI / 2; m.rotation.z = Math.PI / 4; m.visible = false; scene.add(m);
+    return { m, t: 0 };
+  });
+  function ring(x, z, color) {
+    const r = rings.find((q) => q.t <= 0) || rings[0];
+    r.m.material.color.set(color); r.m.position.set(x, FLOOR + 0.06, z); r.t = 1; r.m.visible = true;
+  }
+
+  // ---------- scores: voxel digits standing behind the court ----------
+  const FONT = {
+    0: ['111', '101', '101', '101', '111'], 1: ['010', '110', '010', '010', '111'], 2: ['111', '001', '111', '100', '111'],
+    3: ['111', '001', '111', '001', '111'], 4: ['101', '101', '111', '001', '001'], 5: ['111', '100', '111', '001', '111'],
+    6: ['111', '100', '111', '101', '111'], 7: ['111', '001', '010', '010', '010'], 8: ['111', '101', '111', '101', '111'], 9: ['111', '101', '111', '001', '111'],
+  };
+  const digits = [0, 1].map((i) => {
+    const g = new THREE.Group();
+    g.position.set(i ? 2.6 : -2.6, 0, -CZ - 1.6);
+    g.rotation.x = -0.6;
+    scene.add(g);
+    return { g, pop: 0 };
+  });
+  function setDigit(i, n, color) {
+    const d = digits[i];
+    d.g.clear();
+    const rows = FONT[n].map((r) => r.replace(/1/g, 'x').replace(/0/g, '.'));
+    const cells = [];
+    rows.forEach((row, y) => [...row].forEach((ch, x) => { if (ch === 'x') cells.push([x, y]); }));
+    const s = 0.5;
+    const mesh = new THREE.InstancedMesh(unit, new THREE.MeshLambertMaterial({ color, emissive: color, emissiveIntensity: 0.6 }), cells.length);
+    const m4 = new THREE.Matrix4();
+    cells.forEach(([x, y], k) => { m4.makeScale(s * 0.94, s * 0.94, s * 0.94).setPosition((x - 1) * s, (4 - y) * s + s / 2, 0); mesh.setMatrixAt(k, m4); });
+    mesh.castShadow = true;
+    d.g.add(mesh);
+  }
+
+  // ================= the match =================
+  let paddles = [], players = [], opponent = null, cpuColor = '#ff2bd6';
+  const st = {};
+  function newMatch() {
+    paddles.forEach((p) => scene.remove(p.g));
+    players.forEach((c) => scene.remove(c.g));
+    if (opponent) scene.remove(opponent.g);
+    const team = sel.mode === 'team';
+    cpuColor = team ? '#ffe600' : '#ff2bd6';
+    paddles = [makePaddle('#00f0ff', -1), makePaddle(cpuColor, 1)];
+    players = team ? [character('fox', '#00f0ff'), character('owl', '#ff2bd6')] : [character('fox', '#00f0ff')];
+    players.forEach((c, i) => c.home.set(team ? (i ? -5.6 : -8.9) : -8.4, 0, -CZ - 1.8));
+    opponent = character(team ? 'robot' : 'owl', cpuColor);
+    opponent.home.set(8.4, 0, -CZ - 1.8);
+    [...players, opponent].forEach((c) => c.g.position.copy(c.home));
+    gutters[1].material.color.set(cpuColor);
+    Object.assign(st, {
+      x: 0, z: 0, vx: 0, vz: 0, y: 0, speed: 0, live: false, serving: 1.3, serveDir: 1, missed: -1, score: [0, 0],
+      hitStop: 0, slow: 0, shake: 0, flash: 0, push: 0, fall: 0, over: false,
+      base: LEVELS.find((l) => l.id === sel.level).speed,
+    });
+    setDigit(0, 0, '#00f0ff'); setDigit(1, 0, cpuColor);
+    $('results').hidden = true;
+    prepServe();
+  }
+
+  function predict(x, z, vx, vz, toX) {
+    const path = [];
+    const lim = CZ - R;
+    for (let t = 0; t < 3 && Math.sign(toX - x) === Math.sign(vx); t += 0.016) {
+      x += vx * 0.016; z += vz * 0.016;
+      if (z > lim) { z = 2 * lim - z; vz = -vz; }
+      if (z < -lim) { z = -2 * lim - z; vz = -vz; }
+      path.push([x, z]);
+    }
+    return { z, path };
+  }
+  function prepServe() {
+    st.live = false; st.missed = -1; st.fall = 0;
+    st.x = 0; st.z = (Math.random() * 2 - 1) * 1.5; st.speed = st.base;
+    const a = (0.22 + Math.random() * 0.4) * (Math.random() < 0.5 ? -1 : 1);
+    st.vx = Math.cos(a) * st.speed * st.serveDir; st.vz = Math.sin(a) * st.speed;
+    st.serving = 1.4;
+    st.aim = predict(st.x, st.z, st.vx, st.vz, st.serveDir * (PX - 0.45 - R)).path;
+  }
+  function aiTarget(i) {
+    const p = paddles[i];
+    const r = predict(st.x, st.z, st.vx, st.vz, p.side * (PX - 0.45 - R));
+    const lvl = sel.level === 'hard' ? 0.5 : sel.level === 'medium' ? 0.9 : 1.4;
+    const sloppy = Math.random() < (i === 1 ? 0.3 : 0.15) ? lvl * 2.4 : lvl * 0.5;
+    p.target = r.z + (Math.random() * 2 - 1) * sloppy;
+  }
+  let lastTouch = -1e9;
+  const humanOn = () => performance.now() - lastTouch < 3000;
+
+  function hit(i) {
+    const p = paddles[i];
+    const off = Math.max(-1, Math.min(1, (st.z - p.z) / (HALF + R)));
+    st.speed = Math.min(st.speed * 1.05, st.base * 1.8);
+    const a = off * 0.9;
+    st.vx = Math.cos(a) * st.speed * -p.side; st.vz = Math.sin(a) * st.speed;
+    st.x = p.side * (PX - 0.45 - R);
+    p.wave = 0; p.hitZ = st.z;
+    st.hitStop = 0.06; st.shake = Math.max(st.shake, 0.22); st.flash = 1;
+    burst(st.x, FLOOR + R, st.z, p.color, 12, 3.5);
+    ring(st.x, st.z, p.color);
+    blip(360 + st.speed * 18, 0.08);
+    if (i === 0) setTimeout(() => aiTarget(1), 0);
+    else if (!humanOn()) aiTarget(0);
+  }
+  function score(w) {
+    st.live = false;
+    st.score[w] += 1;
+    setDigit(w, Math.min(9, st.score[w]), w ? cpuColor : '#00f0ff');
+    digits[w].pop = 1;
+    const c = w ? cpuColor : '#00f0ff';
+    burst(w ? -CX : CX, FLOOR, st.z, c, 34, 5, 9, 0.34);
+    gutters[w ? 0 : 1].material.opacity = 1;
+    (w ? [opponent] : players).forEach((ch) => (ch.jump = 1));
+    (w ? players : [opponent]).forEach((ch) => (ch.sad = 1));
+    st.shake = 0.55; st.push = w ? 1 : -1;
+    tune([523, 659, 784, 1046]);
+    st.serveDir = w ? -1 : 1;
+    if (st.score[w] >= 5) { st.over = true; setTimeout(() => showResults(w), 1400); }
+    else setTimeout(prepServe, 1300);
+  }
+
+  function showResults(w) {
+    const team = sel.mode === 'team';
+    const c = w ? cpuColor : '#00f0ff';
+    const art = w ? (team ? 'robot' : 'owl') : 'fox';
+    pixel($('winner'), ART[art]);
+    pixel($('crown'), ART.crown);
+    $('results').style.setProperty('--c', c);
+    $('win-t').textContent = w ? (team ? 'Computer wins!' : 'Leo wins!') : (team ? 'Team wins!' : 'Mia wins!');
+    $('final').innerHTML = `<span style="color:#00f0ff">${st.score[0]}</span><i>–</i><span style="color:${cpuColor}">${st.score[1]}</span>`;
+    $('results').hidden = false;
+    tune([392, 523, 659, 784, 1046, 784, 1046], 0.11);
+  }
+
+  function step(dt, real) {
+    // Paddles: the person drives the left one; the computer drives anything nobody touches.
+    for (const p of paddles) {
+      const lim = CZ - HALF + 0.2;
+      const want = Math.max(-lim, Math.min(lim, p.target));
+      const human = p.side < 0 && humanOn();
+      const max = (human ? 40 : 11) * dt;
+      p.z += Math.max(-max, Math.min(max, want - p.z));
+      p.g.position.z = p.z;
+      // Hit wave: the block that touched the ball pops first, then its neighbours.
+      if (p.wave >= 0) p.wave += real * 4;
+      p.blocks.forEach((b, k) => {
+        const dist = Math.abs(p.z + (k - 2) * 0.96 - (p.hitZ ?? 0)) / 0.96;
+        const t = p.wave - dist * 0.35;
+        const s = t > 0 && t < 1 ? Math.sin(t * Math.PI) : 0;
+        b.position.x = -p.side * s * 0.35;
+        b.position.y = s * 0.35;
+        b.scale.set(CUBE * (1 + s * 0.25), CUBE * (1 - s * 0.15), CUBE);
+      });
+      if (p.wave > 3) p.wave = -1;
+    }
+    if (st.serving > 0) {
+      st.serving -= dt;
+      if (st.serving <= 0) { st.live = true; blip(300, 0.1); if (st.vx > 0) aiTarget(1); else if (!humanOn()) aiTarget(0); }
+      return;
+    }
+    if (!st.live) return;
+    st.x += st.vx * dt; st.z += st.vz * dt;
+    const lim = CZ - R;
+    if (st.z > lim || st.z < -lim) {
+      st.z = Math.max(-lim, Math.min(lim, st.z)); st.vz *= -1;
+      burst(st.x, FLOOR + R, st.z, '#b9a8e8', 4, 1.5, 2.5, 0.18); blip(200, 0.04);
+    }
+    for (const [i, p] of paddles.entries()) {
+      const face = p.side * (PX - 0.45);
+      const coming = Math.sign(st.vx) === p.side;
+      if (coming && st.missed < 0 && p.side * (st.x + p.side * R) >= p.side * face) {
+        if (Math.abs(st.z - p.z) <= HALF + R) hit(i); else st.missed = i;
+      }
+    }
+    if (st.missed >= 0 && Math.abs(st.x) > CX + 0.2) {
+      st.fall = 0.001;
+      score(st.missed ? 0 : 1);
+    }
+  }
+
+  // ---------- pointer: drag anywhere to move the cyan paddle ----------
+  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -FLOOR), hitP = new THREE.Vector3();
+  canvas.addEventListener('pointermove', (e) => {
+    if (e.pointerType === 'mouse' || e.buttons || e.pointerType === 'touch') {
+      ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+      ray.setFromCamera(ndc, camera);
+      if (ray.ray.intersectPlane(plane, hitP) && paddles[0]) {
+        paddles[0].target = hitP.z; lastTouch = performance.now();
+        $('hint').style.opacity = '0';
+      }
+    }
+  });
+  canvas.addEventListener('pointerdown', (e) => canvas.setPointerCapture?.(e.pointerId));
+
+  // ================= screens =================
+  let mode = 'menu';
+  function toast(text) {
+    $('toast-t').textContent = text; $('toast').hidden = false; $('toast').style.opacity = '1';
+    setTimeout(() => { $('toast').style.opacity = '0'; }, 2200);
+  }
+  $('start').addEventListener('click', () => {
+    if (!audio) { try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch { /* no sound */ } }
+    tune([392, 523, 784], 0.07);
+    $('menu').classList.add('gone');
+    setTimeout(() => {
+      mode = 'game'; document.body.classList.add('playing');
+      $('game').hidden = false; $('hud').hidden = false; $('hint').hidden = false; $('hint').style.opacity = '1';
+      resize(); newMatch();
+      camPos.set(0, 70, 50);
+      if (sel.game !== 'pong') toast('This sample only has Pong');
+    }, 380);
+  });
+  function toMenu() {
+    mode = 'menu'; document.body.classList.remove('playing');
+    $('game').hidden = true; $('hud').hidden = true; $('hint').hidden = true; $('results').hidden = true;
+    $('menu').classList.remove('gone');
+  }
+  $('back').addEventListener('click', toMenu);
+  $('to-menu').addEventListener('click', toMenu);
+  $('again').addEventListener('click', () => { blip(520, 0.08); newMatch(); });
+  $('mute').addEventListener('click', () => {
+    muted = !muted;
+    pixel($('ic-sound'), muted ? ART.mutei : ART.sound);
+    $('mute-t').textContent = muted ? 'Sound off' : 'Sound on';
+  });
+  pixel($('ic-back'), ART.back); pixel($('ic-sound'), ART.sound); pixel($('ic-again'), ART.again); pixel($('ic-grid'), ART.grid);
+
+  // Fit the camera so the court (plus the strip behind it with the scores and players)
+  // fills the screen, whatever its shape, leaving room only for the bottom buttons.
+  const PITCH = 1.02; // about 58 degrees down
+  const camDir = new THREE.Vector3(0, Math.sin(PITCH), Math.cos(PITCH));
+  const fitTarget = new THREE.Vector3(0, FLOOR, -1);
+  let fitDist = 40;
+  const fitPts = [];
+  for (const x of [-CX - 0.95, CX + 0.95]) {
+    for (const z of [CZ + 0.2, -CZ]) fitPts.push(new THREE.Vector3(x, 0, z), new THREE.Vector3(x, FLOOR, z));
+    fitPts.push(new THREE.Vector3(x * 0.85, 4.4, -CZ - 1.8));
+  }
+  function fitCamera() {
+    const bottom = -1 + (2 * 64) / innerHeight, top = 0.985, side = 0.985;
+    const project = (d) => {
+      camera.position.copy(fitTarget).addScaledVector(camDir, d);
+      camera.lookAt(fitTarget); camera.updateMatrixWorld();
+      let xMax = 0, yMin = 9, yMax = -9;
+      for (const p of fitPts) { const v = p.clone().project(camera); xMax = Math.max(xMax, Math.abs(v.x)); yMin = Math.min(yMin, v.y); yMax = Math.max(yMax, v.y); }
+      return { xMax, yMin, yMax };
+    };
+    for (let round = 0; round < 4; round++) {
+      let lo = 8, hi = 250;
+      for (let k = 0; k < 28; k++) {
+        const mid = (lo + hi) / 2, e = project(mid);
+        // Fits when both sides and the top and bottom are inside the allowed area.
+        if (e.xMax <= side && e.yMax <= top && e.yMin >= bottom) hi = mid; else lo = mid;
+      }
+      fitDist = hi;
+      const e = project(fitDist);
+      const centre = (e.yMax + e.yMin) / 2 - (top + bottom) / 2;
+      fitTarget.z -= centre * ((CZ * 2 + 2) / Math.max(0.2, e.yMax - e.yMin));
+    }
+  }
+  function resize() {
+    const w = innerWidth, h = innerHeight;
+    renderer.setSize(w, h, false);
+    composer?.setSize(w, h);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    fitCamera();
+  }
+  addEventListener('resize', resize);
+  resize();
+
+  // ================= main loop =================
+  const camPos = new THREE.Vector3(0, 70, 50), camWant = new THREE.Vector3(), look = new THREE.Vector3();
+  let last = performance.now(), time = 0;
+  function frame(now) {
+    const real = Math.min(0.05, (now - last) / 1000);
+    last = now; time += real;
+    if (mode === 'menu') { drawBg(now); requestAnimationFrame(frame); return; }
+
+    let dt = real;
+    if (st.hitStop > 0) { st.hitStop -= real; dt = 0; }
+    else if (st.missed >= 0 && st.live) dt = real * 0.25; // slow motion while the ball slips past
+    if (!st.over || st.live) step(dt, real);
+    else step(0, real);
+
+    // Ball: hop on the serve, drop into the gutter on a goal.
+    let by = FLOOR + R;
+    if (st.serving > 0) by += Math.abs(Math.sin(st.serving * 7)) * 0.9 * Math.min(1, st.serving);
+    if (st.fall > 0) { st.fall += real; by -= st.fall * st.fall * 14; }
+    ball.visible = by > FLOOR - 2;
+    ball.position.set(st.x, by, st.z);
+    ball.rotation.x += st.vz * dt * 1.5; ball.rotation.z -= st.vx * dt * 1.5;
+    st.flash = Math.max(0, st.flash - real * 5);
+    halo.position.copy(ball.position); halo.visible = ball.visible;
+    halo.scale.setScalar(3 + st.flash * 3);
+    trailPos.unshift(ball.position.clone()); trailPos.length = Math.min(trailPos.length, trail.length);
+    trail.forEach((m, i) => { const p = trailPos[i]; m.visible = Boolean(p) && st.live; if (p) m.position.copy(p); m.rotation.y = time * 3; });
+
+    // Aim dots on the serve, marching toward whoever receives.
+    dots.forEach((d, i) => {
+      const path = st.aim || [];
+      const idx = Math.floor(((i + (time * 6) % 1) / dots.length) * path.length * 0.85);
+      const p = path[idx];
+      d.visible = st.serving > 0 && Boolean(p);
+      if (p) { d.position.set(p[0], FLOOR + 0.2, p[1]); d.material.opacity = 0.85 * (1 - i / dots.length) * Math.min(1, st.serving * 2); }
+    });
+
+    for (const d of debris) {
+      if (d.life <= 0) continue;
+      d.life -= real; d.v.y -= 22 * real;
+      d.m.position.addScaledVector(d.v, real);
+      const floorY = Math.abs(d.m.position.x) < CX && Math.abs(d.m.position.z) < CZ ? FLOOR : 0;
+      if (d.m.position.y < floorY + d.s / 2) { d.m.position.y = floorY + d.s / 2; d.v.y *= -0.4; d.v.x *= 0.6; d.v.z *= 0.6; }
+      d.m.scale.setScalar(d.s * Math.min(1, d.life / d.max * 1.6));
+      d.m.material.opacity = Math.min(1, d.life / d.max * 2);
+      d.m.rotation.y += real * 4;
+      if (d.life <= 0) d.m.visible = false;
+    }
+    for (const r of rings) {
+      if (r.t <= 0) continue;
+      r.t -= real * 2.2; r.m.scale.setScalar(1 + (1 - r.t) * 3.5); r.m.material.opacity = Math.max(0, r.t);
+      if (r.t <= 0) r.m.visible = false;
+    }
+    gutters.forEach((g) => { g.material.opacity += (0.55 - g.material.opacity) * real * 2; });
+    digits.forEach((d) => { d.pop = Math.max(0, d.pop - real * 2.2); const s = 1 + Math.sin(d.pop * Math.PI) * 0.45; d.g.scale.setScalar(s); d.g.position.y = Math.sin(d.pop * Math.PI) * 1.2; });
+
+    // Characters: breathe, hop when they score, droop when they miss.
+    for (const c of [...players, opponent]) {
+      c.jump = Math.max(0, c.jump - real * 1.3); c.sad = Math.max(0, c.sad - real * 0.9);
+      const hop = c.jump > 0 ? Math.abs(Math.sin((1 - c.jump) * Math.PI * 3)) * 1.6 * c.jump : 0;
+      c.g.position.set(c.home.x, hop, c.home.z);
+      c.g.scale.set(1 + c.sad * 0.08, 1 + Math.sin(time * 2.4 + c.ph) * 0.025 - c.sad * 0.16, 1);
+      c.g.rotation.z = c.jump > 0 ? Math.sin(time * 18) * 0.12 * c.jump : Math.sin(time * 1.3 + c.ph) * 0.03;
+    }
+
+    // Camera: a soft top-down view, nudging toward a goal, with a short shake on impacts.
+    camWant.copy(fitTarget).addScaledVector(camDir, fitDist * (1 - Math.abs(st.push) * 0.06));
+    camWant.x += st.push * 1.2;
+    look.copy(fitTarget); look.x += st.push * 0.8;
+    st.push *= Math.pow(0.4, real);
+    camPos.lerp(camWant, Math.min(1, real * 2));
+    st.shake = Math.max(0, st.shake - real * 1.8);
+    const sh = reduceMotion ? 0 : st.shake * st.shake * 1.6;
+    camera.position.set(camPos.x + (Math.random() - 0.5) * sh, camPos.y + (Math.random() - 0.5) * sh, camPos.z + (Math.random() - 0.5) * sh);
+    camera.lookAt(look);
+
+    if (composer) composer.render(); else renderer.render(scene, camera);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
