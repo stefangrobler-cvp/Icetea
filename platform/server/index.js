@@ -208,7 +208,7 @@ function handlePhone(ws, msg) {
     if (!room.host || !/^[a-zA-Z0-9]{1,16}$/.test(String(msg.c))) return;
     const v = cleanValue(msg.v);
     if (v === null) return;
-    send(room.host, { t: MSG.INPUT, s: ws.slot, c: msg.c, v, n: Number(msg.n) || 0 });
+    send(room.host, { t: MSG.INPUT, s: ws.slot, c: msg.c, v, n: Number(msg.n) || 0, ...(msg.e ? { e: 1 } : {}) });
   } else if (msg.t === MSG.COMMAND || msg.t === MSG.SIGNAL || msg.t === MSG.PING) {
     send(room.host, { ...msg, slot: ws.slot });
   }

@@ -593,7 +593,9 @@ body[data-game='soccer'] .zone {
 .phone-note .text { font-size: 20px; font-weight: 600; }
 
 /* Kit: flash instead of vibrating (phones that can't vibrate) */
-.zone.buzz, .dial.buzz, .tap-control.buzz { animation: buzz 0.18s ease-out; }
+.zone.buzz, .dial.buzz, .tap-control.buzz, .pointer-control.buzz { animation: buzz 0.18s ease-out; }
+.pad.buzz { animation: pad-buzz 0.18s ease-out; }
+@keyframes pad-buzz { 0% { box-shadow: 0 0 80px 10px var(--pad); } 100% { box-shadow: 0 0 22px -4px var(--pad); } }
 @keyframes buzz { 0% { box-shadow: 0 0 80px 10px var(--me); } 100% { box-shadow: 0 0 24px -4px var(--me); } }
 
 /* Kit: aim circle extras */
@@ -685,3 +687,59 @@ body[data-game='soccer'] .zone {
 .tap-fill { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: var(--me); opacity: 0.22; pointer-events: none; }
 .tap-control.charging { opacity: 0.6; }
 @keyframes tap-charge { from { height: 0; } to { height: 100%; } }
+
+/* Kit: coloured pads */
+.pads-control { flex: 1; display: grid; gap: 10px; touch-action: none; user-select: none; -webkit-user-select: none; }
+.pads-control.pads-2 { grid-template-columns: 1fr 1fr; }
+.pads-control.pads-3 { grid-template-columns: 1fr 1fr 1fr; }
+.pads-control.pads-4 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+.pad {
+  border-radius: 26px;
+  border: 4px solid var(--pad);
+  background: radial-gradient(circle at center, color-mix(in srgb, var(--pad) 28%, transparent), color-mix(in srgb, var(--pad) 8%, transparent) 75%);
+  box-shadow: 0 0 22px -4px var(--pad), inset 0 0 30px rgba(255, 255, 255, 0.04);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: min(18vw, 84px);
+  transition: transform 0.06s, box-shadow 0.06s, background 0.06s;
+}
+.pad span { pointer-events: none; }
+.pad.pressed, .pad.lit {
+  background: radial-gradient(circle at center, var(--pad), color-mix(in srgb, var(--pad) 40%, transparent) 80%);
+  box-shadow: 0 0 60px 6px var(--pad);
+  transform: scale(0.97);
+}
+.pads-control.waiting .pad { opacity: 0.35; }
+
+/* Kit: pointer touchpad */
+.pointer-control {
+  flex: 1;
+  position: relative;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  border-radius: 30px;
+  border: 3px solid var(--me);
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px) 0 0 / 40px 40px,
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px) 0 0 / 40px 40px,
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.01));
+  box-shadow: 0 0 24px -4px var(--me);
+  overflow: hidden;
+}
+.pointer-control.touching { box-shadow: 0 0 46px -2px var(--me); }
+.pointer-control.tapped { animation: buzz 0.25s ease-out; }
+.pointer-control.waiting { opacity: 0.4; }
+.pointer-dot {
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 4px solid var(--me);
+  box-shadow: 0 0 20px var(--me);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.pointer-hint { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 80px; opacity: 0.25; pointer-events: none; }
+.pointer-back { position: absolute; top: 12px; left: 12px; width: 76px; height: 76px; font-size: 38px; border-radius: 22px; padding: 0; }

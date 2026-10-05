@@ -149,7 +149,8 @@ function startScreen() {
 
   // Controller kit input. It can arrive by two routes, so ignore any older than the newest.
   function onInput(seat, msg) {
-    const key = `${seat}:${msg.c}`;
+    // One-off events (taps, releases) are counted apart from position updates.
+    const key = `${seat}:${msg.c}${msg.e ? ':e' : ''}`;
     if (!(msg.n > (lastSeq[key] || 0))) return;
     lastSeq[key] = msg.n;
     if (match?.game && match.seats.includes(seat)) safely(() => match.game.input(seat, String(msg.c), msg.v));

@@ -2,7 +2,7 @@
 
 The platform shell from the brief's Foundation phase: rooms and live connection,
 QR joining, the controller kit, the game plug-in contract, guest play and basic
-measurement. Pong, Soccer, Block Stacker and Hazard Storm are the games plugged into the contract so far.
+measurement. Pong, Soccer, Block Stacker, Hazard Storm and Cyber Hunt are the games plugged into the contract so far.
 
 ```
  Phone (controller kit) ──controls──▶ Server (rooms, relay) ──▶ Big screen (platform shell)
@@ -55,7 +55,8 @@ test/            contract and boundary checks, each game's rules, platform, serv
 ## Controller kit
 
 `swipe` (swipe pad, up/down or sideways), `aim` (aiming circle), `tap` (giant button, press or hold) and
-`tilt` (tilt left/right; a drag rail where there's no motion sensor): only what the games use.
+`tilt` (tilt left/right; a drag rail where there's no motion sensor), `pads` (2-4 coloured
+pads) and `pointer` (a touchpad moving a cursor on the big screen): only what the games use.
 New controls are added when a game genuinely needs one, after asking.
 Phones vibrate where allowed (Android); elsewhere (iPhone) the controls flash.
 

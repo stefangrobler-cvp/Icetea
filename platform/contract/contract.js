@@ -22,6 +22,10 @@ export const CONTROLS = {
   tap: { settings: ['id', 'label'] },
   // Tilt the phone left / right (or drag a rail where there's no motion sensor). Value: -1 .. 1.
   tilt: { settings: ['id', 'label'] },
+  // 2-4 big pads in fixed colours (cyan, pink, yellow, green). Value: { pad, down: true|false }.
+  pads: { settings: ['id', 'label', 'pads'] },
+  // A touchpad moving a cursor on the big screen. Value: { x, y } (0..1), { x, y, tap: true }, { back: true }.
+  pointer: { settings: ['id', 'label'] },
 };
 
 // Events a game reports with host.report({ type, ... }).
@@ -101,6 +105,7 @@ export function validateManifest(m) {
       }
       if (c.look && !kind.looks?.includes(c.look)) err(`${where}: ${c.control} has no look "${c.look}"`);
       if (c.direction && !kind.directions?.includes(c.direction)) err(`${where}: ${c.control} has no direction "${c.direction}"`);
+      if (c.control === 'pads' && c.pads !== undefined && !(Number.isInteger(c.pads) && c.pads >= 2 && c.pads <= 4)) err(`${where}: pads must be 2, 3 or 4`);
     }
   }
 

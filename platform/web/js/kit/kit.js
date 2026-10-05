@@ -10,8 +10,10 @@ import { swipe } from './swipe.js';
 import { aim } from './aim.js';
 import { tap } from './tap.js';
 import { tilt } from './tilt.js';
+import { pads } from './pads.js';
+import { pointer } from './pointer.js';
 
-const CONTROLS = { swipe, aim, tap, tilt };
+const CONTROLS = { swipe, aim, tap, tilt, pads, pointer };
 
 /**
  * Build a layout (one or two controls side by side) inside `container`.
@@ -38,6 +40,14 @@ export function mountLayout(container, controls, params, ctx) {
     flash() {
       for (const p of parts) {
         const target = p.el.querySelector('.dial') || p.el;
+        if (target.classList.contains('pads-control')) {
+          for (const pad of target.querySelectorAll('.pad')) {
+            pad.classList.remove('buzz');
+            void pad.offsetWidth;
+            pad.classList.add('buzz');
+          }
+          continue;
+        }
         if (target.classList.contains('tilt-control')) continue;
         target.classList.remove('buzz');
         void target.offsetWidth; // restart the animation

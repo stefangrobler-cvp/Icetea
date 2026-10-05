@@ -15,9 +15,10 @@ Write a short brief, in plain language, and decide:
 - **Players and modes**: 1–4 phones; head-to-head and/or team v computer (`sides`, `computer`).
 - **Controls**: map every action to the controller kit — `swipe` (0..1 slider; look `bar` or `rod`; `direction: horizontal` for left/right),
   `aim` (dial; `{angle}` then `{angle, release:true}`), `tap` (giant button; `{down:true}` /
-  `{down:false}`, params `ready`, `icon`, `text`) and `tilt` (-1..1; drag rail fallback). Use several layouts and switch
+  `{down:false}`, params `ready`, `icon`, `text`) `tilt` (-1..1; drag rail fallback),
+  `pads` (2-4 coloured pads; `{pad, down}`) and `pointer` (touchpad cursor; `{x,y}`, `{x,y,tap}`, `{back}`). Use several layouts and switch
   them mid-match with `host.setLayout` if needed.
-  **If the idea truly needs a control that isn't in the kit (coloured pads, slingshot, pointer, joystick...),
+  **If the idea truly needs a control that isn't in the kit (slingshot, joystick, drawing...),
   stop and ask the owner before building it.** Suggest a way to play it with the existing kit too.
 - **Win rule and match length** (aim for 1–5 minutes), **difficulty options**, and what
   **boost** (help for younger players) does in this game.

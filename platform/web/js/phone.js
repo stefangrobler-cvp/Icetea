@@ -95,7 +95,9 @@ const kitContext = {
   values: {}, // control id -> last value (kept when the layout changes)
   send(id, value, reliable = false) {
     counter += 1;
-    const text = JSON.stringify({ t: MSG.INPUT, c: id, v: value, n: counter });
+    // Reliable inputs are one-off events (a tap, a release): marked `e` so a newer
+    // position update can't make the screen throw them away as out of date.
+    const text = JSON.stringify(reliable ? { t: MSG.INPUT, c: id, v: value, n: counter, e: 1 } : { t: MSG.INPUT, c: id, v: value, n: counter });
     if (reliable) {
       // Must arrive (e.g. "let go" of the aiming circle): through the server too.
       conn.send(text);
@@ -107,13 +109,13 @@ const kitContext = {
 };
 
 // The direct link may drop a message now and then (on purpose, for speed), so
-// repeat the current swipe and tilt positions a few times a second.
+// repeat the current swipe, tilt and pointer positions a few times a second.
 setInterval(() => {
   if (!link.open || !layout) return;
   for (const spec of layout.specs) {
-    if (spec.control !== 'swipe' && spec.control !== 'tilt') continue;
+    if (!['swipe', 'tilt', 'pointer'].includes(spec.control)) continue;
     counter += 1;
-    const fallback = spec.control === 'tilt' ? 0 : 0.5;
+    const fallback = spec.control === 'tilt' ? 0 : spec.control === 'pointer' ? { x: 0.5, y: 0.5 } : 0.5;
     link.send(JSON.stringify({ t: MSG.INPUT, c: spec.id, v: kitContext.values[spec.id] ?? fallback, n: counter }));
   }
 }, 150);

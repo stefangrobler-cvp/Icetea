@@ -63,10 +63,12 @@ test('the contract checker catches broken manifests', async () => {
   assert.deepEqual(validateManifest({ ...manifest, layouts: { play: [{ control: 'swipe', id: 'p', colour: 'red' }] } }).length, 1);
   assert.deepEqual(validateManifest({ ...manifest, layouts: { play: [{ control: 'swipe', id: 'p', direction: 'horizontal' }] } }), []);
   assert.deepEqual(validateManifest({ ...manifest, layouts: { play: [{ control: 'swipe', id: 'p', direction: 'diagonal' }] } }).length, 1);
+  assert.deepEqual(validateManifest({ ...manifest, layouts: { play: [{ control: 'pads', id: 'p', pads: 4 }] } }), []);
+  assert.deepEqual(validateManifest({ ...manifest, layouts: { play: [{ control: 'pads', id: 'p', pads: 6 }] } }).length, 1);
 });
 
 test('the controller kit is small: only the controls the games use', () => {
-  assert.deepEqual(Object.keys(CONTROLS).sort(), ['aim', 'swipe', 'tap', 'tilt']);
+  assert.deepEqual(Object.keys(CONTROLS).sort(), ['aim', 'pads', 'pointer', 'swipe', 'tap', 'tilt']);
 });
 
 test('players are put on sides: the computer keeps its side, people share the rest', () => {
