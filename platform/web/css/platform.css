@@ -711,6 +711,8 @@ body[data-game='soccer'] .zone {
   transform: scale(0.97);
 }
 .pads-control.waiting .pad { opacity: 0.35; }
+.pad.off { opacity: 0.12; filter: grayscale(0.7); }
+.pads-control.waiting .pad.lit { opacity: 1; }
 
 /* Kit: pointer touchpad */
 .pointer-control {

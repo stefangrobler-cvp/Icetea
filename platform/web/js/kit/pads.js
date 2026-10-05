@@ -6,7 +6,8 @@
 // so "tap the colour you see" works for children who can't read.
 //
 // Setting: pads (2-4, default 4).
-// Layout params: { ready, icons: [emoji per pad], lit: index of a pad to light up }
+// Layout params: { ready, icons: [emoji per pad], lit: index of a pad to light up,
+//                  active: [indices of pads this player may use; the others are dimmed] }
 // Sends { pad, down: true } when pressed and { pad, down: false } when let go, reliably.
 
 export const PAD_COLORS = ['#00f0ff', '#ff2bd6', '#ffe600', '#39ff7a'];
@@ -26,17 +27,20 @@ export function pads(el, spec, ctx, params = {}) {
     padEls.forEach((pad, i) => {
       pad.querySelector('span').textContent = p.icons?.[i] || spec.label || '';
       pad.classList.toggle('lit', p.lit === i);
+      pad.classList.toggle('off', !usable(i));
     });
   }
 
+  const usable = (i) => !Array.isArray(p.active) || p.active.includes(i);
+
   function press(i) {
-    if (p.ready === false) return;
+    if (p.ready === false || !usable(i)) return;
     padEls[i].classList.add('pressed');
     ctx.send(spec.id, { pad: i, down: true }, true);
   }
   function release(i) {
     padEls[i].classList.remove('pressed');
-    if (p.ready === false) return;
+    if (p.ready === false || !usable(i)) return;
     ctx.send(spec.id, { pad: i, down: false }, true);
   }
 

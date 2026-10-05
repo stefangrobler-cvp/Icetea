@@ -2,7 +2,7 @@
 
 The platform shell from the brief's Foundation phase: rooms and live connection,
 QR joining, the controller kit, the game plug-in contract, guest play and basic
-measurement. Pong, Soccer, Block Stacker, Hazard Storm and Cyber Hunt are the games plugged into the contract so far.
+measurement. Pong, Soccer, Block Stacker, Hazard Storm, Cyber Hunt and Synth Sequence are the games plugged into the contract so far.
 
 ```
  Phone (controller kit) ──controls──▶ Server (rooms, relay) ──▶ Big screen (platform shell)
