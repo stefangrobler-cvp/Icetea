@@ -23,6 +23,18 @@ Each game is a sealed folder in `games/` that follows the plug-in contract:
 [platform/contract/README.md](platform/contract/README.md).
 How it all fits together: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
+Start a new game from the template (a small working starter you then replace):
+
+```
+npm run new-game -- air-hockey "Air Hockey" 🏒
+npm test
+node scripts/smoke.cjs air-hockey   # with npm start running: quick browser check
+```
+
+With Claude Code: `CLAUDE.md` holds the project rules, `/new-game <idea>` walks
+through brief → build → check, and the `game-builder` agent builds approved games
+in parallel. A start-up hook installs everything in cloud sessions.
+
 ## Running it
 
 ```

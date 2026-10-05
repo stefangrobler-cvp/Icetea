@@ -1,0 +1,24 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/session-start.sh"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(npm test)",
+      "Bash(npm install)",
+      "Bash(npm start)",
+      "Bash(npm run new-game:*)",
+      "Bash(node scripts/smoke.cjs:*)",
+      "Bash(pkill -x node)"
+    ]
+  }
+}

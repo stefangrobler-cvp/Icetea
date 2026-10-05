@@ -122,7 +122,9 @@ test('QR code and pages are served', async () => {
 
 test('the game list comes from the games\' manifests', async () => {
   const list = await (await fetch(`http://localhost:${PORT}/api/catalogue`)).json();
-  assert.deepEqual(list.map((g) => g.id), ['pong', 'soccer']);
+  const { games } = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '..', 'platform', 'catalogue.json'), 'utf8'));
+  assert.deepEqual(list.map((g) => g.id), games);
+  assert.ok(games.includes('pong') && games.includes('soccer'));
   assert.ok(list.every((g) => g.contract === 1 && g.layouts));
 });
 

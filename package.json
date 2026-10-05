@@ -9,7 +9,8 @@
   },
   "scripts": {
     "start": "node platform/server/index.js",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "new-game": "node scripts/new-game.mjs"
   },
   "repository": {
     "type": "git",
