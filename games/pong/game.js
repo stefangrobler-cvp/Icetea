@@ -6,23 +6,40 @@
 
 import { manifest } from './manifest.js';
 import { Engine, PHASE } from './engine.js';
-import { Renderer } from './renderer.js';
+import { Renderer as Renderer3D, canDraw3D } from './renderer3d.js';
+import { Renderer as Renderer2D } from './renderer2d.js';
 import { Replay } from './replay.js';
 import { makeSounds } from './sounds.js';
-import { COLORS } from './config.js';
+import { COLORS, BALL } from './config.js';
+
+const HIT_FREEZE = 0.045; // seconds the game holds still on each hit, so it lands with a thump
+const SLOW_MOTION = 0.3; // game speed while a ball that got past a paddle rolls into the goal
 
 export { manifest };
 
 export function createGame(host) {
-  const canvas = document.createElement('canvas');
-  canvas.style.cssText = 'position:absolute;inset:0;display:block;touch-action:none';
-  host.stage.appendChild(canvas);
+  const makeCanvas = () => {
+    const c = document.createElement('canvas');
+    c.style.cssText = 'position:absolute;inset:0;display:block;touch-action:none';
+    host.stage.appendChild(c);
+    return c;
+  };
+  let canvas = makeCanvas();
 
   // Colours come from the platform's theme (neon for now).
   for (const key of ['background', 'line', 'ball', 'cpu']) if (host.theme?.[key]) COLORS[key] = host.theme[key];
 
   const engine = new Engine({ rng: host.random });
-  const renderer = new Renderer(canvas);
+  // The neon voxel court in 3D; the flat court on a screen that can't do 3D.
+  let renderer = null;
+  if (canDraw3D()) {
+    try { renderer = new Renderer3D(canvas); } catch (e) { console.warn('Pong: 3D unavailable, drawing flat', e); }
+  }
+  if (!renderer) {
+    canvas.remove();
+    canvas = makeCanvas();
+    renderer = new Renderer2D(canvas);
+  }
   const sounds = makeSounds(host.audio);
   const replay = new Replay();
 
@@ -34,6 +51,7 @@ export function createGame(host) {
   let rally = 0;
   let longestRally = 0;
   let lastMessage = '';
+  let freeze = 0; // seconds left of a hit's freeze
 
   const name = (seat) => {
     const p = players.find((x) => x.seat === seat);
@@ -42,6 +60,11 @@ export function createGame(host) {
   const sideName = (side) => {
     if (mode === 'team') return side === 'left' ? 'Team' : '🤖 Computer';
     return name(players.find((p) => p.side === side)?.seat);
+  };
+  // The same, without the emoji, for the big screen (which shows the pixel animals).
+  const plainName = (side) => {
+    if (mode === 'team') return side === 'left' ? 'Team' : 'Computer';
+    return players.find((p) => p.side === side)?.nickname || '';
   };
   const sideColor = (side) => engine.state.paddles.find((p) => p.side === side)?.color || COLORS.line;
 
@@ -73,7 +96,9 @@ export function createGame(host) {
     } else if (s.phase === PHASE.TOSS) {
       const landed = s.toss.timeLeft < 0.6;
       const text = landed ? `${sideName(s.toss.winner)} serves first!` : '🪙 Coin toss…';
-      caption = { text, color: landed ? sideColor(s.toss.winner) : '#ffffff' };
+      caption = renderer instanceof Renderer3D
+        ? { text: landed ? `${plainName(s.toss.winner)} serves first!` : 'Coin toss', color: landed ? sideColor(s.toss.winner) : '#ffe600' }
+        : { text, color: landed ? sideColor(s.toss.winner) : '#ffffff' };
       phone = { icon: '🪙', text: landed ? text : 'Coin toss…' };
     } else if (s.phase === PHASE.COUNTDOWN) {
       big = String(Math.ceil(s.countdown));
@@ -95,6 +120,7 @@ export function createGame(host) {
     for (const ev of events) {
       if (ev.type === 'hit') {
         sounds.paddle(ev.power);
+        freeze = HIT_FREEZE;
         const paddle = engine.state.paddles.find((p) => p.id === ev.paddle);
         if (paddle?.slot) {
           host.vibrate(paddle.slot, 15 + Math.round(ev.power * 25));
@@ -116,17 +142,31 @@ export function createGame(host) {
     }
   }
 
+  // Has the ball passed the paddles on the side it's heading to? (It can't be returned now.)
+  function ballGotPast() {
+    const s = engine.state;
+    const b = s.ball;
+    if (s.phase !== PHASE.PLAYING || !b.visible) return false;
+    const side = b.vx < 0 ? 'left' : 'right';
+    const mine = s.paddles.filter((p) => p.side === side);
+    if (!mine.length) return false;
+    return side === 'left'
+      ? b.x + BALL.radius < Math.min(...mine.map((p) => p.x - p.w / 2))
+      : b.x - BALL.radius > Math.max(...mine.map((p) => p.x + p.w / 2));
+  }
+
   return {
     start({ mode: modeId, options, players: list }) {
       players = list.map((p) => ({ ...p }));
       mode = modeId;
       ended = false;
+      freeze = 0;
       rally = 0;
       longestRally = 0;
       replay.stop();
       renderer.replaying = false;
       renderer.mode = mode;
-      renderer.players = Object.fromEntries(players.map((p) => [p.seat, { avatar: p.avatar, color: p.color }]));
+      renderer.players = Object.fromEntries(players.map((p) => [p.seat, { avatar: p.avatar, color: p.color, art: p.art }]));
       engine.setSettings({ mode, difficulty: options.difficulty });
       const sides = Object.fromEntries(players.map((p) => [p.seat, p.side]));
       const colors = { ...Object.fromEntries(players.map((p) => [p.seat, p.color])), cpu: COLORS.cpu };
@@ -155,7 +195,10 @@ export function createGame(host) {
       }
       shown = null;
       if (ended) return;
-      const events = engine.step(dt);
+      // Game feel: a split-second hold on each hit, and slow motion once a ball
+      // has got past a paddle. Both slow the whole game evenly, for every player.
+      if (freeze > 0) { freeze -= dt; updateMessages(); return; }
+      const events = engine.step(dt * (ballGotPast() ? SLOW_MOTION : 1));
       const s = engine.state;
       const scored = events.some((e) => e.type === 'point');
       // Keep the last few seconds of each rally, so the winning shot can be replayed.
@@ -180,7 +223,7 @@ export function createGame(host) {
     playerJoined(player) {
       if (mode !== 'team' || players.some((p) => p.seat === player.seat)) return false;
       players.push({ ...player, side: 'left' });
-      renderer.players[player.seat] = { avatar: player.avatar, color: player.color };
+      renderer.players[player.seat] = { avatar: player.avatar, color: player.color, art: player.art };
       engine.colors[player.seat] = player.color;
       engine.addPlayer(player.seat, player.boost || 0);
       host.setLayout(player.seat, 'play');

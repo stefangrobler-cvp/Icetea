@@ -26,9 +26,16 @@ Read `docs/ARCHITECTURE.md` and `platform/contract/README.md` before changing ei
 - **Works in current Safari and Chrome** on phones and tablets (iPad included:
   provide fallbacks such as `roundRect`; vibration is Android-only, iPhone flashes).
 - **A child who can't read must be able to play.** Icons and colour first, words second.
-  `howTo` tips start with an emoji. Results show avatars.
-- **Neon arcade look** is the placeholder theme: draw with `host.theme` colours, not
-  hard-coded ones. Rounded font Fredoka (self-hosted).
+  `howTo` tips start with an emoji icon (menus show it as pixel art where
+  `platform/shared/pixels.js` has one). Results show the players' animals.
+- **Neon Voxel look**: a night-violet world of chunky blocks with neon player colours,
+  pixel-art animals instead of emoji on screen, pixel-stepped ribbon labels. Reference:
+  `docs/style-samples/neon-voxel-pong.html`. Draw with `host.theme` and player colours;
+  draw players as their `art` (pixel data from `host.players`), not their emoji.
+  Fonts: Fredoka for text, Press Start 2P for short labels (both self-hosted).
+- **3D games** use three.js r128 kept in the game's own `vendor/` folder (see `games/pong/`),
+  with its network loaders switched off, and fall back to a flat 2D drawing when a screen
+  has no WebGL. Check the frame rate on a real tablet.
 
 ## Games
 

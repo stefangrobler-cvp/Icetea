@@ -17,7 +17,7 @@ measurement. Pong, Soccer, Block Stacker, Hazard Storm, Cyber Hunt and Synth Seq
 platform/
   contract/      the game plug-in contract (contract.js) and its guide (README.md)
   server/        rooms, live connection, QR codes, game catalogue, measurement
-  shared/        message names, nicknames/avatars, theme (platform only, not for games)
+  shared/        message names, nicknames/avatars, pixel art (pixels.js), theme (platform only, not for games)
   web/           big screen (index.html, js/screen.js), phone (play.html, js/phone.js),
                  controller kit (js/kit/), sound, direct link, font
   catalogue.json the list of games
@@ -69,6 +69,15 @@ during alpha can be swapped for a database: `postgresStore` is used when
 are random, stored hashed, and only used to count returning devices.
 Numbers page: `/stats?key=<STATS_KEY>` (off unless `STATS_KEY` is set), including
 the 👍 / 👎 share per game from the after-match `feedback` vote.
+
+## Look: Neon Voxel
+
+Menus (`web/css/voxel.css`, loaded after `platform.css`) and games share one look:
+a night-violet block world, neon player colours, pixel-art animals and icons
+(`shared/pixels.js`; the phones still save the emoji, which is the animal's id).
+Games get each player's animal as plain data in `players[].art`. Pong draws in 3D
+with three.js r128 kept in `games/pong/vendor/` (MIT, network loaders switched off),
+and falls back to its flat 2D drawing (`renderer2d.js`) when a screen has no WebGL.
 
 ## Help for younger players
 
