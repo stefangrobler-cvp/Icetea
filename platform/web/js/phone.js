@@ -9,6 +9,9 @@ import { AVATARS, BOOSTS, cleanProfile, defaultAvatar, nicknameAllowed } from '/
 import { Connection, keepScreenOn } from './net.js';
 import { PhoneLink } from './direct.js';
 import { mountLayout } from './kit/kit.js';
+import { pix, pixRow } from './pixels.js';
+
+for (const el of document.querySelectorAll('[data-icon]')) el.insertAdjacentHTML('afterbegin', pix(el.dataset.icon));
 
 const $ = (id) => document.getElementById(id);
 const roomCode = (new URLSearchParams(location.search).get('room') || '').toUpperCase();
@@ -191,7 +194,7 @@ window.addEventListener('pageshow', (e) => { if (e.persisted) conn.reconnectNow(
 // ---------- who are you? ----------
 
 // Help for a younger player (bigger paddle). Remembered on this phone with the nickname.
-$('boost-row').innerHTML = BOOSTS.map((b) => `<button data-boost="${b.level}"><span class="icon">${b.icon}</span>${b.label}</button>`).join('');
+$('boost-row').innerHTML = BOOSTS.map((b) => `<button data-boost="${b.level}"><span class="icon">${pixRow(b.icon)}</span>${b.label}</button>`).join('');
 $('boost-row').addEventListener('click', (e) => {
   const btn = e.target.closest('[data-boost]');
   if (!btn || !profile) return;
@@ -215,7 +218,7 @@ function openProfile() {
   if (!grid.children.length) {
     for (const a of AVATARS) {
       const b = document.createElement('button');
-      b.textContent = a;
+      b.innerHTML = pix(a);
       b.dataset.avatar = a;
       b.addEventListener('click', () => { pickedAvatar = a; markAvatar(); });
       grid.appendChild(b);
@@ -253,7 +256,8 @@ $('badge').addEventListener('click', () => { if (state?.phase === 'lobby' && sea
 const show = (id, on) => $(id).classList.toggle('hidden', !on);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const button = (pick, value, icon, text, selected, extra = '') =>
-  `<button data-pick="${pick}" data-value="${value}" ${extra} class="${selected ? 'selected' : ''}"><span class="icon">${icon}</span>${esc(text)}</button>`;
+  `<button data-pick="${pick}" data-value="${value}" ${extra} class="${selected ? 'selected' : ''}"><span class="icon">${pixRow(icon)}</span>${esc(text)}</button>`;
+const CARD_TINTS = [['#3b1d85', '#00f0ff'], ['#0f5a3c', '#39ff7a'], ['#163a8a', '#7d8cff'], ['#6a3410', '#ff9f1c'], ['#0b4a5c', '#00f0ff'], ['#5c0f52', '#ff2bd6']];
 const nameOf = (s) => (state?.players?.[s] ? `${state.players[s].avatar} ${state.players[s].name}` : `Player ${s}`);
 const SCREENS = ['status', 'profile', 'lobby', 'paused', 'results', 'controller', 'score', 'pause', 'note'];
 
@@ -261,7 +265,11 @@ let lastLobby = '';
 function render() {
   const me = state?.players?.[seat];
   document.body.style.setProperty('--me', me?.color || '#ffffff');
-  $('badge').textContent = seat ? (profile?.avatar || defaultAvatar(seat)) : '…';
+  const badge = seat ? (profile?.avatar || defaultAvatar(seat)) : null;
+  if ($('badge').dataset.shown !== String(badge)) {
+    $('badge').dataset.shown = String(badge);
+    $('badge').innerHTML = badge ? pix(badge) : '…';
+  }
 
   // Problems first
   let status = null;
@@ -302,7 +310,8 @@ function render() {
       const sel = state.selection;
       const game = state.catalogue?.find((g) => g.id === sel.game);
       $('lobby-settings').innerHTML = `
-        <div class="row game-cards">${(state.catalogue || []).map((g) => button('game', g.id, g.icon, g.name, g.id === sel.game)).join('')}</div>
+        <div class="row game-cards">${(state.catalogue || []).map((g, i) => button('game', g.id, g.icon, g.name, g.id === sel.game,
+    `style="--t:${CARD_TINTS[i % CARD_TINTS.length][0]};--c:${CARD_TINTS[i % CARD_TINTS.length][1]}"`)).join('')}</div>
         <div class="row">${(game?.modes || []).map((m) => button('mode', m.id, m.icon, m.label, m.id === sel.mode)).join('')}</div>
         ${(game?.options || []).map((o) => `<div class="row">${o.choices.map((c) => button('option', c.id, c.icon, c.label, sel.options[o.id] === c.id, `data-option="${o.id}"`)).join('')}</div>`).join('')}`;
     }
@@ -357,7 +366,7 @@ function render() {
     else if (r.team) { icon = r.winners.map((s) => state.players[s]?.avatar).join(''); text = 'TEAM WINS!'; }
     else if (r.winners.includes(seat)) { icon = state.players[seat]?.avatar; text = 'YOU WIN!'; }
     else { icon = state.players[r.winners[0]]?.avatar; text = `${state.players[r.winners[0]]?.name} wins!`; }
-    $('over-icon').textContent = icon || '🏆';
+    $('over-icon').innerHTML = `${r.winner != null ? pix('👑', 'pix crown-small') : ''}${pixRow(icon || '🏆')}`;
     $('over-text').textContent = text;
     $('over-text').style.color = r.computerWon ? '#ffe600' : state.players[r.winners[0]]?.color || '#ffffff';
     $('again').disabled = !state.canStart;

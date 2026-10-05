@@ -7,7 +7,9 @@
   <meta name="theme-color" content="#05010f">
   <title>Neon Arcade controller</title>
   <link rel="preload" href="/fonts/fredoka-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/press-start-2p-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/css/platform.css">
+  <link rel="stylesheet" href="/css/voxel.css">
 </head>
 <body class="phone">
   <!-- The controller: built by the controller kit from the game's layout -->
@@ -34,9 +36,9 @@
     <p class="medium neon" style="color: var(--me)">Who are you?</p>
     <input id="name" class="name-input" type="text" maxlength="12" autocomplete="off"
            autocapitalize="words" spellcheck="false" placeholder="Nickname" enterkeyhint="done">
-    <p id="name-hint" class="small hidden">🙊 Please pick another nickname</p>
+    <p id="name-hint" class="small hidden">Please pick another nickname</p>
     <div id="avatars" class="avatar-grid"></div>
-    <button id="profile-done" class="go start-btn">Let's go! ▶</button>
+    <button id="profile-done" class="go start-btn">LET'S GO</button>
   </section>
 
   <!-- Lobby: pick a game, how to play it, and start -->
@@ -49,7 +51,7 @@
     <div class="settings" id="lobby-settings"></div>
     <div class="start-dock">
       <p id="start-hint" class="small"></p>
-      <button id="start" class="go start-btn">▶ START</button>
+      <button id="start" class="go start-btn">START</button>
     </div>
   </section>
 
@@ -58,7 +60,7 @@
     <p class="medium neon" style="color: var(--cpu)">PAUSED</p>
     <button id="resume" class="go huge-btn" aria-label="Resume">▶</button>
     <div class="settings" id="pause-settings"></div>
-    <button id="menu" class="menu-btn">🏠 Games</button>
+    <button id="menu" class="menu-btn" data-icon="🏠">Games</button>
   </section>
 
   <!-- Results -->
@@ -66,12 +68,12 @@
     <p id="over-icon" class="big crowned">🏆</p>
     <p id="over-text" class="medium neon"></p>
     <div class="row thumbs" id="thumbs">
-      <button data-vote="up" aria-label="Liked it">👍</button>
-      <button data-vote="down" aria-label="Didn't like it">👎</button>
+      <button data-vote="up" aria-label="Liked it" data-icon="👍"></button>
+      <button data-vote="down" aria-label="Didn't like it" data-icon="👎"></button>
     </div>
     <div class="stack">
-      <button id="again" class="go">🔁 Play again</button>
-      <button id="change">🎮 Games</button>
+      <button id="again" class="go" data-icon="🔁">PLAY AGAIN</button>
+      <button id="change" data-icon="🏠">Games</button>
     </div>
   </section>
 

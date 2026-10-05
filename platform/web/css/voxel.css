@@ -1,0 +1,217 @@
+/* Neon Voxel: the platform's look (menus on the big screen and the phones).
+   Loaded after platform.css and overrides it: a night-violet world, chunky
+   block buttons, pixel-art animals and icons, ribbon labels, neon player colours.
+   Games still draw their own stage. */
+
+@font-face {
+  font-family: 'Press Start 2P';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/press-start-2p-latin.woff2') format('woff2');
+}
+
+:root {
+  --bg: #160934;
+  --violet: #2a1366;
+  --violet-2: #3b1d85;
+  --violet-3: #5a34b8;
+  --card: #2a1366;
+  --card-border: #3b1d85;
+  --text: #f4f2ff;
+  --muted: #b9a8e8;
+  --go: #39ff7a;
+  --accent: #5a34b8;
+  --accent-2: #7d8cff;
+  --pixel: 'Press Start 2P', ui-monospace, monospace;
+  --block: inset 0 -6px 0 rgba(0, 0, 0, 0.25);
+}
+body[data-game] { --bg: #160934; }
+
+/* Pixel pictures stay crisp at any size */
+img.pix, .pix-row img { image-rendering: pixelated; image-rendering: crisp-edges; display: inline-block; vertical-align: middle; }
+img.pix { height: 1.3em; width: auto; }
+[data-icon] > img.pix:first-child { margin-right: 8px; }
+.thumbs [data-icon] > img.pix:first-child { margin: 0; }
+.howto-card span img.pix { height: 40px; }
+.howto-game div img.pix { height: 1.2em; margin-right: 4px; }
+.pix-row { display: inline-flex; align-items: center; gap: 4px; }
+.pix.emoji { font-size: 0.9em; }
+
+/* Night meadow behind the menus */
+#bg-meadow { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+.overlay.solid { background: transparent; }
+.overlay.dim { background: rgba(22, 9, 52, 0.62); }
+#lobby.overlay.dim { background: transparent; }
+
+/* Block buttons */
+button {
+  border: 0;
+  border-radius: 6px;
+  background: var(--violet);
+  box-shadow: var(--block);
+}
+button:active { transform: translateY(3px); box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.25); }
+button.selected {
+  background: var(--violet-3);
+  color: var(--text);
+  box-shadow: 0 0 0 3px var(--text), 0 0 22px -4px var(--accent-2), var(--block);
+}
+button.go, .start-btn.go {
+  background: var(--go);
+  color: #160934;
+  font-family: var(--pixel);
+  font-weight: 400;
+  letter-spacing: 2px;
+  box-shadow: var(--block), 0 0 36px -6px var(--go);
+}
+button.go[disabled] { background: var(--violet-2); color: var(--muted); box-shadow: var(--block); }
+button.go:not([disabled]).breathe { animation: breathe 1.8s ease-in-out infinite; }
+@keyframes breathe { 50% { box-shadow: var(--block), 0 0 60px 0 var(--go); } }
+
+/* Pixel-stepped ribbon label */
+.ribbon {
+  --rc: var(--text);
+  display: inline-block; padding: 9px 16px 8px; background: var(--rc); color: #160934;
+  font: 11px/1.3 var(--pixel); letter-spacing: 1px; text-transform: uppercase; transform: rotate(-2.5deg);
+  clip-path: polygon(0 4px, 4px 4px, 4px 0, calc(100% - 4px) 0, calc(100% - 4px) 4px, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 4px calc(100% - 4px), 0 calc(100% - 4px));
+}
+
+/* Titles and the logo in the pixel font */
+.title {
+  font-family: var(--pixel);
+  font-weight: 400;
+  background: none;
+  color: var(--text);
+  filter: none;
+  line-height: 1.2;
+  text-shadow: 0 0 18px #ff2bd6, 3px 3px 0 #ff2bd6;
+  font-size: clamp(26px, 4.6vw, 56px);
+}
+.logo { margin: 0; font: clamp(24px, 3vw, 38px)/1.15 var(--pixel); color: var(--text); text-shadow: 0 0 18px #ff2bd6, 3px 3px 0 #ff2bd6; }
+.logo span { color: #00f0ff; text-shadow: 0 0 18px #00f0ff, 3px 3px 0 var(--violet-3); }
+.label { font: 10px var(--pixel); color: var(--muted); letter-spacing: 1px; margin: 0 0 10px; text-transform: uppercase; }
+.settings h3 { margin-top: 4px; }
+.settings h3 { font: 10px var(--pixel); color: var(--muted); letter-spacing: 1px; margin: 0 0 10px; }
+
+/* ---------- big screen: welcome and how to play ---------- */
+.welcome .medium { font-size: clamp(18px, 2.4vw, 28px); }
+#welcome-icons img { width: clamp(30px, 3.4vw, 44px); height: auto; margin: 0 4px; filter: drop-shadow(0 0 6px rgba(125, 140, 255, 0.6)); }
+.welcome-btn { font-size: clamp(16px, 2vw, 24px); padding: 24px 40px; }
+#howto { justify-content: flex-start; overflow-y: auto; padding-block: 24px; }
+.howto-card { padding: 10px 12px; }
+.howto-card { background: var(--violet); border: 0; border-radius: 6px; box-shadow: var(--block); }
+.howto-card span img { width: 48px; height: auto; }
+.howto-game { background: var(--violet); border: 0; border-radius: 6px; }
+.howto-game b img { width: 26px; height: auto; margin-right: 6px; }
+
+/* ---------- big screen: lobby ---------- */
+.lobby { grid-template-columns: minmax(240px, 290px) 1fr; max-width: 1320px; align-items: start; }
+.lobby-side { display: flex; flex-direction: column; gap: 20px; }
+.qr-box {
+  background: var(--violet); border: 0; border-radius: 6px; padding: 18px;
+  box-shadow: 0 0 0 4px var(--violet-2), 0 0 32px -6px #00f0ff;
+}
+.qr { border-radius: 4px; box-shadow: none; width: clamp(150px, 24vh, 230px); height: clamp(150px, 24vh, 230px); }
+.qr-box .medium { font: 12px var(--pixel); color: #00f0ff !important; }
+.room-code { color: var(--muted); font-size: 15px; text-align: center; }
+.room-code b { display: flex; justify-content: center; gap: 8px; margin-top: 10px; letter-spacing: 0; font-size: 0; }
+.room-code b span {
+  width: 44px; height: 52px; display: grid; place-items: center; font: 22px var(--pixel); color: #160934;
+  background: #00f0ff; box-shadow: inset 0 -6px 0 rgba(0, 0, 0, 0.22), 0 0 18px -2px #00f0ff; border-radius: 4px;
+}
+.players { grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.player-chip {
+  opacity: 1; min-height: 64px; border: 0; border-radius: 6px; background: transparent;
+  box-shadow: inset 0 0 0 3px var(--violet-2); color: var(--muted); padding: 8px 12px; font-size: 17px;
+}
+.player-chip::before { display: none; }
+.player-chip .slot-avatar { width: 44px; height: 44px; flex: none; }
+.player-chip .slot-empty { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 3px dashed var(--violet-3); border-radius: 6px; font: 13px var(--pixel); color: var(--violet-3); }
+.player-chip .chip-text { display: flex; flex-direction: column; min-width: 0; }
+.player-chip.on { background: var(--violet); color: var(--text); box-shadow: 0 0 0 3px var(--c), 0 0 22px -6px var(--c); }
+.player-chip.on .slot-avatar { filter: drop-shadow(0 0 6px var(--c)); }
+.player-chip small { margin: 0; color: var(--c); font-size: 13px; font-weight: 600; }
+.player-chip:not(.on) small { color: var(--muted); }
+.player-chip .boost img { width: 16px; height: auto; }
+
+.settings .row.game-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.game-cards button {
+  --t: var(--violet-2); --c: #00f0ff;
+  position: relative; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 14px; text-align: left;
+  padding: 12px 14px; background: var(--t); border-radius: 6px; box-shadow: var(--block);
+  transition: transform 0.18s cubic-bezier(.3, 1.6, .5, 1), box-shadow 0.18s;
+}
+.game-cards button .icon { width: 60px; height: 60px; display: grid; place-items: center; background: rgba(0, 0, 0, 0.22); border-radius: 4px; }
+.game-cards button .icon img { width: 48px; height: auto; filter: drop-shadow(0 0 6px var(--c)); }
+.game-cards button .icon .emoji { font-size: 34px; }
+.game-cards button .info b { font-size: 20px; }
+.game-cards button .meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; opacity: 1; font-size: 14px; white-space: normal; }
+.game-cards button .meta span { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 4px; background: rgba(0, 0, 0, 0.28); font-weight: 600; }
+.game-cards button .meta img { width: 13px; height: auto; }
+.game-cards button.selected { color: var(--text); background: var(--t); transform: translateY(-6px); box-shadow: 0 0 0 4px var(--c), 0 0 30px -4px var(--c), var(--block); }
+.game-cards button.selected .icon img { animation: bob 1.2s ease-in-out infinite; }
+.game-cards button .ribbon { position: absolute; right: -6px; top: -12px; --rc: var(--c); font-size: 8px; padding: 6px 9px; display: none; }
+.game-cards button.selected .ribbon { display: inline-block; }
+@keyframes bob { 50% { transform: translateY(-4px); } }
+
+.choices { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.choices .row button, #modes button, #pause-options button {
+  display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 6px; font-size: 16px;
+}
+.choices .row button img, #pause-options button img { width: 30px; height: auto; }
+.choices .row button .pix-row { min-height: 32px; }
+
+#start.start-btn { font-size: clamp(18px, 2.2vw, 26px); padding: 22px; }
+#start-hint { color: var(--muted); }
+
+/* Corner buttons */
+.corner-btn, .mute-btn { background: rgba(22, 9, 52, 0.75); box-shadow: 0 0 0 3px var(--violet-3); opacity: 1; font-family: var(--pixel); font-size: 14px; }
+.mute-btn img { width: 22px; height: auto; display: block; }
+
+/* ---------- big screen: paused / waiting, and results ---------- */
+#held-big { font-family: var(--pixel); font-weight: 400; font-size: clamp(36px, 7vw, 90px); }
+.pause-menu .row button { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.results-box { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+.crowned-pix { position: relative; display: flex; gap: 8px; justify-content: center; }
+.crowned-pix .who { width: clamp(110px, 16vw, 170px); height: auto; filter: drop-shadow(0 0 18px var(--c)); }
+.crowned-pix .crown-pix { position: absolute; left: 50%; top: -44px; width: 72px; height: auto; transform: translateX(-50%) rotate(-8deg); filter: drop-shadow(0 0 10px #ffe600); }
+#results .ribbon { font-size: clamp(14px, 2vw, 20px); --rc: var(--c); }
+.final { font: clamp(26px, 4vw, 44px) var(--pixel); display: flex; gap: 18px; align-items: center; }
+.final i { font-style: normal; color: var(--muted); font-size: 0.6em; }
+#results .row button { display: inline-flex; align-items: center; gap: 10px; }
+#results .row button img { width: 22px; height: auto; }
+.thumbs button { background: var(--violet); }
+.thumbs button img { width: 34px; height: auto; }
+
+/* ---------- phones ---------- */
+.phone .me-badge { border-radius: 8px; padding: 6px; }
+.phone .me-badge img { width: 100%; height: 100%; }
+.avatar-grid button { padding: 10px 0; border-radius: 6px; }
+.avatar-grid button img { width: 52px; height: auto; }
+.avatar-grid button.selected { background: var(--violet-3); box-shadow: 0 0 0 3px var(--me), 0 0 22px var(--me), var(--block); }
+.name-input { border-radius: 6px; background: var(--violet); }
+.phone #you-are { font-family: var(--pixel); font-size: 13px; line-height: 1.5; }
+.phone .settings button .icon img { width: 30px; height: auto; }
+.phone .settings button .icon .pix-row img { width: 22px; }
+.phone .settings .game-cards button { --t: var(--violet-2); background: var(--t); display: flex; }
+.phone .settings .game-cards button.selected { box-shadow: 0 0 0 3px var(--c), 0 0 20px -4px var(--c), var(--block); transform: none; }
+.phone .settings .game-cards .icon { width: auto; height: auto; background: none; display: block; }
+.phone .settings .game-cards .icon img { width: 40px; }
+.phone .settings .boost-row button .icon img { width: 22px; }
+.phone .settings .boost-row button .icon .pix-row img { width: 18px; }
+#over-icon { display: flex; flex-direction: column; align-items: center; }
+#over-icon .pix-row img { width: clamp(90px, 30vw, 140px); height: auto; }
+#over-icon .crown-small { width: 64px; height: auto; margin-bottom: -6px; transform: rotate(-8deg); }
+.crowned::before { content: none; }
+#over-text { font-family: var(--pixel); font-size: 18px; }
+.phone .start-dock { background: linear-gradient(transparent, #160934 24px); }
+.phone .start-btn { font-size: 20px; }
+.phone .zone, .phone .tap-control, .phone .pointer-control, .phone .pad { border-radius: 10px; }
+@media (max-width: 900px) {
+  .lobby { grid-template-columns: 1fr; }
+  .lobby-side { flex-direction: row; align-items: center; justify-content: center; flex-wrap: wrap; }
+  .players { grid-template-columns: repeat(2, 1fr); }
+  .settings .row.game-cards { grid-template-columns: repeat(2, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) { button.go.breathe, .game-cards button.selected .icon img { animation: none; } }

@@ -13,6 +13,8 @@ import { Connection, keepScreenOn } from './net.js';
 import { HostLinks } from './direct.js';
 import { unlock, gameAudio, fanfare, isMuted, setMuted } from './audio.js';
 import { startDemo } from './demo.js';
+import { pix, pixRow, pixelURL } from './pixels.js';
+import { avatarArt, artFor } from '/platform/shared/pixels.js';
 
 const $ = (id) => document.getElementById(id);
 const theme = DEFAULT_THEME;
@@ -39,7 +41,49 @@ if (looksLikePhone && !forcedScreen) {
   startScreen();
 }
 
+// Pixel icons on the page's fixed buttons and cards (marked data-icon / data-pix in the HTML).
+function decorate() {
+  for (const el of document.querySelectorAll('[data-icon]')) el.insertAdjacentHTML('afterbegin', pix(el.dataset.icon));
+  for (const el of document.querySelectorAll('[data-pix]')) el.innerHTML = pixRow(el.dataset.pix);
+}
+
+// The night meadow behind the menus: neon block flowers that twinkle.
+function meadow(canvas) {
+  const ctx = canvas.getContext('2d');
+  const colors = ['#00f0ff', '#ff2bd6', '#39ff7a', '#ff9f1c', '#7d8cff'];
+  const flowers = Array.from({ length: 70 }, (_, i) => ({
+    x: (i * 0.618034) % 1, y: (i * 0.4142 + 0.13 * (i % 3)) % 1, c: colors[i % 5], s: 0.6 + ((i * 7) % 5) / 5, ph: i,
+  }));
+  return (t) => {
+    const w = innerWidth;
+    const h = innerHeight;
+    if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+    ctx.fillStyle = '#160934';
+    ctx.fillRect(0, 0, w, h);
+    const tile = 64;
+    ctx.fillStyle = 'rgba(90, 52, 184, 0.10)';
+    for (let y = 0; y < h; y += tile) for (let x = ((y / tile) % 2) * (tile / 2); x < w; x += tile) ctx.fillRect(x, y, tile / 2, tile / 2);
+    for (const f of flowers) {
+      const u = 5 * f.s;
+      const x = f.x * w;
+      const y = f.y * h;
+      ctx.globalAlpha = 0.45 + 0.35 * Math.sin(t / 900 + f.ph);
+      ctx.fillStyle = f.c;
+      ctx.fillRect(x, y - u, u, u); ctx.fillRect(x - u, y, u, u); ctx.fillRect(x + u, y, u, u); ctx.fillRect(x, y + u, u, u);
+      ctx.fillStyle = '#ffe600';
+      ctx.fillRect(x, y, u, u);
+    }
+    ctx.globalAlpha = 1;
+  };
+}
+
+// Each game card gets its own dark tint, in catalogue order.
+const CARD_TINTS = [['#3b1d85', '#00f0ff'], ['#0f5a3c', '#39ff7a'], ['#163a8a', '#7d8cff'], ['#6a3410', '#ff9f1c'], ['#0b4a5c', '#00f0ff'], ['#5c0f52', '#ff2bd6']];
+
 function startScreen() {
+  decorate();
+  $('crown-pix').src = pixelURL(artFor('👑'));
+  const drawMeadow = meadow($('bg-meadow'));
   // The looping demo on the welcome screen (stops once we're past it).
   let stopDemo = startDemo($('demo'), DEFAULT_THEME);
 
@@ -110,7 +154,7 @@ function startScreen() {
         case MSG.ROOM:
           room = msg.room;
           sessionStorage.setItem('fgp.room', JSON.stringify({ room: msg.room, token: msg.token }));
-          $('room-code').textContent = room;
+          $('room-code').innerHTML = [...room].map((c) => `<span>${c}</span>`).join('');
           $('qr').src = $('held-qr').src = `/qr.svg?room=${room}`;
           for (const seat of SEATS) setConnected(seat, msg.players[seat]);
           break;
@@ -183,7 +227,7 @@ function startScreen() {
   fetch('/api/catalogue').then((r) => r.json()).then((list) => {
     catalogue = list;
     if (catalogue.length) chooseGame(catalogue[0].id);
-    $('welcome-icons').textContent = catalogue.map((g) => g.icon).join(' ');
+    $('welcome-icons').innerHTML = catalogue.map((g) => pix(g.icon)).join('');
     buildHowtoGames();
     lastView = '';
   });
@@ -271,6 +315,7 @@ function startScreen() {
     const list = seats.map((seat) => ({
       seat, nickname: players[seat].profile.name, avatar: players[seat].profile.avatar,
       color: theme.seats[seat], side: sides[seat], boost: players[seat].profile.boost || 0,
+      art: avatarArt(players[seat].profile.avatar),
     }));
     const m = {
       id: ++matchCounter, manifest, modeSpec: mode, options: { ...selection.options }, seats, sides,
@@ -375,6 +420,7 @@ function startScreen() {
     const player = {
       seat, nickname: players[seat].profile.name, avatar: players[seat].profile.avatar,
       color: theme.seats[seat], side, boost: players[seat].profile.boost || 0,
+      art: avatarArt(players[seat].profile.avatar),
     };
     if (safely(() => match.game.playerJoined(player))) {
       match.seats.push(seat);
@@ -481,11 +527,11 @@ function startScreen() {
     const btn = e.target.closest('[data-vote]');
     if (btn) onAction(ACTIONS.FEEDBACK, { vote: btn.dataset.vote });
   });
-  $('mute').textContent = isMuted() ? '🔇' : '🔊';
+  $('mute').innerHTML = pix(isMuted() ? '🔇' : '🔊');
   $('mute').addEventListener('click', () => {
     unlock();
     setMuted(!isMuted());
-    $('mute').textContent = isMuted() ? '🔇' : '🔊';
+    $('mute').innerHTML = pix(isMuted() ? '🔇' : '🔊');
   });
 
   // Game, mode and option buttons are made from the manifests; one click handler for all.
@@ -574,11 +620,12 @@ function startScreen() {
   // ---------- drawing the platform screens ----------
 
   const button = (pick, value, html, selected, extra = '') => `<button data-pick="${pick}" data-value="${value}" ${extra} class="${selected ? 'selected' : ''}">${html}</button>`;
+  const choice = (icon, label) => `${pixRow(icon)}<span>${esc(label)}</span>`;
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   function buildHowtoGames() {
-    $('howto-games').innerHTML = catalogue.map((g) => `<div class="howto-game"><b>${g.icon} ${esc(g.name)}</b>${
-      (g.howTo || []).map((t) => `<div>${t.icon} ${esc(t.text)}</div>`).join('')}</div>`).join('');
+    $('howto-games').innerHTML = catalogue.map((g) => `<div class="howto-game"><b>${pix(g.icon)}${esc(g.name)}</b>${
+      (g.howTo || []).map((t) => `<div>${pix(t.icon)} ${esc(t.text)}</div>`).join('')}</div>`).join('');
   }
 
   let lastView = '';
@@ -597,22 +644,31 @@ function startScreen() {
     const isHeld = phase === 'match' && (paused || missing.length > 0);
     $('held').classList.toggle('hidden', !isHeld);
     $('pause').classList.toggle('hidden', phase !== 'match' || isHeld);
+    $('bg-meadow').classList.toggle('hidden', Boolean(match));
     $('site').textContent = location.host;
     if (!started) return;
 
     // Lobby: players, games, modes and options, all from the manifests.
     $('players').innerHTML = SEATS.map((s) => {
       const p = players[s];
-      return `<div class="player-chip ${p.connected ? 'on' : ''}" style="--c:${theme.seats[s]}"><span class="chip-name">${
-        p.connected ? esc(label(s)) + (p.profile.boost ? ` ${'🐣'.repeat(p.profile.boost)}` : '') : `P${s}`}</span><small>${p.connected ? `Ready!${DEBUG ? ` ${lagText(s)}` : ''}` : 'Waiting…'}</small></div>`;
+      if (!p.connected) {
+        return `<div class="player-chip" style="--c:${theme.seats[s]}"><span class="slot-empty">${s}</span><span class="chip-text"><small>Scan to join</small></span></div>`;
+      }
+      const boost = p.profile.boost ? `<span class="boost">${pix('🐣').repeat(p.profile.boost)}</span>` : '';
+      return `<div class="player-chip on" style="--c:${theme.seats[s]}">${pix(p.profile.avatar, 'pix slot-avatar')}<span class="chip-text"><span class="chip-name">${
+        esc(p.profile.name)} ${boost}</span><small>Ready${DEBUG ? ` ${lagText(s)}` : ''}</small></span></div>`;
     }).join('');
-    $('games').innerHTML = catalogue.map((g) => button('game', g.id,
-      `<span class="icon">${g.icon}</span><span class="info"><b>${esc(g.name)}</b><span class="meta">${esc(g.ages)} · ${g.players.min === g.players.max ? g.players.min : `${g.players.min}–${g.players.max}`} 👤 · ${esc(g.matchLength)}</span></span>`,
-      g.id === selection.game)).join('');
+    $('games').innerHTML = catalogue.map((g, i) => {
+      const [tint, glow] = CARD_TINTS[i % CARD_TINTS.length];
+      const count = g.players.min === g.players.max ? g.players.min : `${g.players.min}–${g.players.max}`;
+      return button('game', g.id,
+        `<span class="icon">${pix(g.icon)}</span><span class="info"><b>${esc(g.name)}</b><span class="meta"><span>${esc(g.ages)}</span><span>${pix('👤')}${count}</span><span>${pix('⏱')}${esc(g.matchLength)}</span></span></span><span class="ribbon">Picked</span>`,
+        g.id === selection.game, `style="--t:${tint};--c:${glow}"`);
+    }).join('');
     const game = selectedGame();
-    $('modes').innerHTML = (game?.modes || []).map((m) => button('mode', m.id, `${m.icon} ${esc(m.label)}`, m.id === selection.mode)).join('');
+    $('modes').innerHTML = (game?.modes || []).map((m) => button('mode', m.id, choice(m.icon, m.label), m.id === selection.mode)).join('');
     $('options').innerHTML = (game?.options || []).map((opt) => `<div><h3>${esc(opt.label)}</h3><div class="row">${
-      opt.choices.map((c) => button('option', c.id, `${c.icon} ${esc(c.label)}`, selection.options[opt.id] === c.id, `data-option="${opt.id}"`)).join('')}</div></div>`).join('');
+      opt.choices.map((c) => button('option', c.id, choice(c.icon, c.label), selection.options[opt.id] === c.id, `data-option="${opt.id}"`)).join('')}</div></div>`).join('');
     const ok = canStart();
     $('start').disabled = !ok || phase === 'loading';
     const need = selectedMode()?.players.min || 1;
@@ -628,26 +684,30 @@ function startScreen() {
       $('held-qr').classList.toggle('hidden', !waiting);
       $('pause-menu').classList.toggle('hidden', waiting);
       $('pause-options').innerHTML = (match?.manifest.options || []).filter((o) => o.changeWhilePaused)
-        .map((opt) => `<div class="row">${opt.choices.map((c) => button('option', c.id, `${c.icon} ${esc(c.label)}`,
+        .map((opt) => `<div class="row">${opt.choices.map((c) => button('option', c.id, `${pix(c.icon)} ${esc(c.label)}`,
           match.options[opt.id] === c.id, `data-option="${opt.id}"`)).join('')}</div>`).join('');
     }
 
-    // Results: the winner's avatar with a crown.
+    // Results: the winner's animal with a crown, and the final score.
     if (phase === 'results' && results) {
       let avatar;
       let text;
       if (results.winner == null) { avatar = '🤝'; text = 'Draw!'; }
-      else if (results.computerWon) { avatar = '🤖'; text = 'COMPUTER WINS!'; }
-      else if (results.team) { avatar = results.winners.map((s) => players[s].profile.avatar).join(''); text = 'TEAM WINS!'; }
+      else if (results.computerWon) { avatar = '🤖'; text = 'Computer wins!'; }
+      else if (results.team) { avatar = results.winners.map((s) => players[s].profile.avatar).join(''); text = 'Team wins!'; }
       else { const s = results.winners[0]; avatar = players[s].profile.avatar; text = `${players[s].profile.name} wins!`; }
-      $('winner-avatar').textContent = avatar;
+      $('winner-avatar').innerHTML = pixRow(avatar, 'pix who');
+      $('crown-pix').hidden = results.winner == null;
+      const colors = match ? sideColors(match) : {};
+      const order = match?.modeSpec.sides.filter((side) => side in (results.scores || {})) || [];
+      $('final-score').innerHTML = order.map((side) => `<span style="color:${colors[side] || theme.text}">${results.scores[side]}</span>`).join('<i>–</i>');
       const mine = results.votes.screen;
       for (const b of $('screen-thumbs').children) {
         b.classList.toggle('selected', b.dataset.vote === mine);
         b.disabled = Boolean(mine) && b.dataset.vote !== mine;
       }
       $('winner-text').textContent = text;
-      $('winner-text').style.color = results.computerWon ? theme.cpu : theme.seats[results.winners[0]] || theme.text;
+      $('results').style.setProperty('--c', results.computerWon ? theme.cpu : theme.seats[results.winners[0]] || theme.text);
     }
   }
 
@@ -707,6 +767,7 @@ function startScreen() {
     updateScreen();
     syncPhones();
     updateStats(now);
+    if (!match) drawMeadow(now);
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
