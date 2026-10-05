@@ -551,10 +551,13 @@ body[data-game='soccer'] .zone {
 
 #stage { position: fixed; inset: 0; overflow: hidden; }
 
-/* Game list on the big screen */
-.game-cards button .meta { display: block; font-size: 13px; font-weight: 500; opacity: 0.75; margin-top: 2px; }
-.game-cards button { flex-direction: column; gap: 2px; }
-.game-cards button > span:first-child { font-size: 40px; line-height: 1.1; }
+/* Game list on the big screen: a 3-across grid, icon beside the name, readable from the couch */
+.settings .row.game-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.game-cards button { flex-direction: row; justify-content: flex-start; gap: 14px; padding: 12px 16px; text-align: left; }
+.game-cards button .icon { font-size: 44px; line-height: 1; flex: none; }
+.game-cards button .info { display: flex; flex-direction: column; min-width: 0; }
+.game-cards button .info b { font-size: 22px; line-height: 1.15; }
+.game-cards button .meta { display: block; font-size: 16px; font-weight: 500; opacity: 0.8; margin-top: 4px; white-space: nowrap; }
 
 /* Room code next to the QR code, big enough to read across the room */
 .room-code { font-size: 15px; color: var(--muted); }
@@ -745,3 +748,27 @@ body[data-game='soccer'] .zone {
 }
 .pointer-hint { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 80px; opacity: 0.25; pointer-events: none; }
 .pointer-back { position: absolute; top: 12px; left: 12px; width: 76px; height: 76px; font-size: 38px; border-radius: 22px; padding: 0; }
+
+/* Phone lobby: games in a grid (no sideways scrolling), scroll if needed, START always in view */
+.phone #lobby { justify-content: flex-start; overflow-y: auto; gap: 14px; padding-bottom: 0; }
+.phone .settings .row.game-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.phone .settings .game-cards button { font-size: 15px; padding: 10px 4px; flex-direction: column; justify-content: center; text-align: center; }
+.phone .settings .game-cards .icon { font-size: 34px; margin-bottom: 2px; }
+.phone .start-dock {
+  position: sticky;
+  bottom: 0;
+  margin-top: auto;
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 0 calc(env(safe-area-inset-bottom) + 12px);
+  background: linear-gradient(transparent, var(--bg) 24px);
+}
+.phone .start-dock #start-hint:empty { display: none; }
+.phone #lobby { padding-top: calc(env(safe-area-inset-top) + 20px); }
+.phone #lobby #you-are { margin-left: 70px; min-height: 52px; display: flex; align-items: center; } /* sits beside the avatar badge */
+.phone #lobby .settings button { padding: 8px 4px; }
+.phone #lobby .settings button .icon { font-size: 26px; margin-bottom: 2px; }
+.phone #lobby .settings .game-cards .icon { font-size: 30px; }

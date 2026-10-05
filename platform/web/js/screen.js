@@ -17,6 +17,8 @@ import { startDemo } from './demo.js';
 const $ = (id) => document.getElementById(id);
 const theme = DEFAULT_THEME;
 const SEATS = Array.from({ length: MAX_PLAYERS }, (_, i) => i + 1);
+// The connection readout (delay, frames per second) is for testing: add ?debug to the address.
+const DEBUG = new URLSearchParams(location.search).has('debug');
 
 // ---------- a phone opened the main address: offer to join instead ----------
 
@@ -56,6 +58,7 @@ function startScreen() {
   try { seenHowto = localStorage.getItem('fgp.seenHowto') === '1'; } catch { /* private mode */ }
 
   let selection = { game: null, mode: null, options: {} };
+  let modePicked = false; // someone tapped a mode; until then it follows how many phones joined
   let phase = 'lobby'; // lobby | loading | match | results
   let match = null; // the current match (see startMatch)
   let results = null;
@@ -137,6 +140,7 @@ function startScreen() {
     p.connected = Boolean(connected);
     if (p.connected && !was) for (const key of Object.keys(lastSeq)) if (key.startsWith(`${seat}:`)) lastSeq[key] = 0;
     if (!p.connected) { links.close(seat); lag[seat] = null; }
+    if (was !== p.connected) fitMode();
     if (match && phase === 'match' && match.seats.includes(seat) && was !== p.connected) {
       if (!p.connected) {
         metric('drop_out', { game: match.manifest.id, seat });
@@ -189,10 +193,23 @@ function startScreen() {
     if (!game) return;
     const keep = selection.options;
     selection = { game: id, mode: game.modes[0].id, options: {} };
+    modePicked = false;
+    fitMode();
     // Keep a choice like difficulty when the next game has the same option.
     for (const opt of game.options || []) {
       selection.options[opt.id] = opt.choices.some((c) => c.id === keep[opt.id]) ? keep[opt.id] : opt.default;
     }
+  }
+
+  // Until someone picks a mode, use the first one that works with the phones here,
+  // so one phone alone gets "Team v computer" instead of a START that can't be pressed.
+  function fitMode() {
+    const game = selectedGame();
+    if (!game || modePicked || (phase !== 'lobby' && phase !== 'results')) return;
+    const count = connectedSeats().length;
+    const fits = game.modes.find((m) => count >= m.players.min && count <= m.players.max)
+      || game.modes.find((m) => count >= m.players.min);
+    selection.mode = (fits || game.modes[0]).id;
   }
 
   function canStart() {
@@ -415,7 +432,7 @@ function startScreen() {
   function changeSettings({ game, mode, options }) {
     if (phase === 'lobby' || phase === 'results') {
       if (game && byId(game) && game !== selection.game) chooseGame(game);
-      if (mode && selectedGame()?.modes.some((m) => m.id === mode)) selection.mode = mode;
+      if (mode && selectedGame()?.modes.some((m) => m.id === mode)) { selection.mode = mode; modePicked = true; }
       for (const opt of selectedGame()?.options || []) {
         const v = options?.[opt.id];
         if (opt.choices.some((c) => c.id === v)) selection.options[opt.id] = v;
@@ -468,11 +485,7 @@ function startScreen() {
   $('mute').addEventListener('click', () => {
     unlock();
     setMuted(!isMuted());
-    $('screen-thumbs').addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-vote]');
-    if (btn) onAction(ACTIONS.FEEDBACK, { vote: btn.dataset.vote });
-  });
-  $('mute').textContent = isMuted() ? '🔇' : '🔊';
+    $('mute').textContent = isMuted() ? '🔇' : '🔊';
   });
 
   // Game, mode and option buttons are made from the manifests; one click handler for all.
@@ -591,10 +604,10 @@ function startScreen() {
     $('players').innerHTML = SEATS.map((s) => {
       const p = players[s];
       return `<div class="player-chip ${p.connected ? 'on' : ''}" style="--c:${theme.seats[s]}"><span class="chip-name">${
-        p.connected ? esc(label(s)) + (p.profile.boost ? ` ${'🐣'.repeat(p.profile.boost)}` : '') : `P${s}`}</span><small>${p.connected ? `Ready! ${lagText(s)}` : 'Waiting…'}</small></div>`;
+        p.connected ? esc(label(s)) + (p.profile.boost ? ` ${'🐣'.repeat(p.profile.boost)}` : '') : `P${s}`}</span><small>${p.connected ? `Ready!${DEBUG ? ` ${lagText(s)}` : ''}` : 'Waiting…'}</small></div>`;
     }).join('');
     $('games').innerHTML = catalogue.map((g) => button('game', g.id,
-      `<span>${g.icon}</span>${esc(g.name)}<span class="meta">${esc(g.ages)} · ${g.players.min === g.players.max ? g.players.min : `${g.players.min}–${g.players.max}`} 👤 · ${esc(g.matchLength)}</span>`,
+      `<span class="icon">${g.icon}</span><span class="info"><b>${esc(g.name)}</b><span class="meta">${esc(g.ages)} · ${g.players.min === g.players.max ? g.players.min : `${g.players.min}–${g.players.max}`} 👤 · ${esc(g.matchLength)}</span></span>`,
       g.id === selection.game)).join('');
     const game = selectedGame();
     $('modes').innerHTML = (game?.modes || []).map((m) => button('mode', m.id, `${m.icon} ${esc(m.label)}`, m.id === selection.mode)).join('');
@@ -664,6 +677,7 @@ function startScreen() {
   let frames = 0;
   let fpsTime = performance.now();
   function updateStats(now) {
+    if (!DEBUG) return;
     frames += 1;
     if (now - fpsTime < 1000) return;
     fps = Math.round((frames * 1000) / (now - fpsTime));
