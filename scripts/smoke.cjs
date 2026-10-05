@@ -43,12 +43,11 @@ if (!game) { console.error('Usage: node scripts/smoke.cjs <game-id> [screenshot-
 
   await screen.click(`[data-pick="game"][data-value="${game}"]`);
   await screen.waitForTimeout(300);
-  // Pick the first mode one phone can play.
-  const modes = await screen.$$('[data-pick="mode"]');
-  for (const m of modes) {
-    await m.click();
+  // The lobby already picks a mode one phone can play; otherwise try each mode.
+  const modeCount = (await screen.$$('[data-pick="mode"]')).length;
+  for (let i = 0; i < modeCount && (await screen.$eval('#start', (b) => b.disabled)); i++) {
+    await screen.click(`[data-pick="mode"] >> nth=${i}`); // looked up again: the list is redrawn after each tap
     await screen.waitForTimeout(150);
-    if (!(await screen.$eval('#start', (b) => b.disabled))) break;
   }
   if (await screen.$eval('#start', (b) => b.disabled)) throw new Error('START stayed disabled: no mode works with one phone');
   await screen.click('#start');
