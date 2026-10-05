@@ -17,6 +17,10 @@ export const CONTROLS = {
   // An aiming circle: touch, slide round to aim, let go to fire.
   // Value while aiming: { angle }. When let go: { angle, release: true }.
   aim: { settings: ['id', 'label'] },
+  // A giant button. Value: { down: true } when pressed, { down: false } when let go.
+  tap: { settings: ['id', 'label'] },
+  // Tilt the phone left / right (or drag a rail where there's no motion sensor). Value: -1 .. 1.
+  tilt: { settings: ['id', 'label'] },
 };
 
 // Events a game reports with host.report({ type, ... }).

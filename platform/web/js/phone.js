@@ -107,13 +107,14 @@ const kitContext = {
 };
 
 // The direct link may drop a message now and then (on purpose, for speed), so
-// repeat the current swipe positions a few times a second.
+// repeat the current swipe and tilt positions a few times a second.
 setInterval(() => {
   if (!link.open || !layout) return;
   for (const spec of layout.specs) {
-    if (spec.control !== 'swipe') continue;
+    if (spec.control !== 'swipe' && spec.control !== 'tilt') continue;
     counter += 1;
-    link.send(JSON.stringify({ t: MSG.INPUT, c: spec.id, v: kitContext.values[spec.id] ?? 0.5, n: counter }));
+    const fallback = spec.control === 'tilt' ? 0 : 0.5;
+    link.send(JSON.stringify({ t: MSG.INPUT, c: spec.id, v: kitContext.values[spec.id] ?? fallback, n: counter }));
   }
 }, 150);
 

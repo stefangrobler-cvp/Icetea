@@ -593,7 +593,7 @@ body[data-game='soccer'] .zone {
 .phone-note .text { font-size: 20px; font-weight: 600; }
 
 /* Kit: flash instead of vibrating (phones that can't vibrate) */
-.zone.buzz, .dial.buzz { animation: buzz 0.18s ease-out; }
+.zone.buzz, .dial.buzz, .tap-control.buzz { animation: buzz 0.18s ease-out; }
 @keyframes buzz { 0% { box-shadow: 0 0 80px 10px var(--me); } 100% { box-shadow: 0 0 24px -4px var(--me); } }
 
 /* Kit: aim circle extras */
@@ -613,3 +613,63 @@ body[data-game='soccer'] .zone {
 /* Welcome demo */
 .demo { width: min(620px, 86vw); aspect-ratio: 640 / 240; display: block; }
 .welcome { gap: 14px; }
+
+/* Kit: tap button */
+.zones.stacked { flex-direction: column; }
+.tap-control {
+  flex: 1;
+  position: relative;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  border-radius: 30px;
+  border: 3px solid var(--me);
+  background: radial-gradient(circle at center, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.01) 70%);
+  box-shadow: 0 0 24px -4px var(--me), inset 0 0 40px rgba(255, 255, 255, 0.03);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: box-shadow 0.08s, background 0.08s, transform 0.08s, opacity 0.2s;
+}
+.tap-control .tap-icon { font-size: min(34vw, 150px); line-height: 1; pointer-events: none; }
+.tap-control .tap-text { font-size: 22px; font-weight: 700; color: var(--me); min-height: 1.2em; pointer-events: none; }
+.tap-control.pressed {
+  background: radial-gradient(circle at center, var(--me), rgba(255, 255, 255, 0.05) 75%);
+  box-shadow: 0 0 70px 4px var(--me), inset 0 0 60px rgba(255, 255, 255, 0.25);
+  transform: scale(0.985);
+}
+.tap-control.waiting { opacity: 0.35; border-style: dashed; }
+
+/* Kit: tilt rail */
+.tilt-control { flex: 0 0 86px; display: flex; align-items: center; justify-content: center; }
+.tilt-rail {
+  position: relative;
+  width: 100%;
+  height: 64px;
+  border-radius: 32px;
+  border: 3px solid var(--me);
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.10) 50%, rgba(255, 255, 255, 0.02));
+  box-shadow: 0 0 18px -4px var(--me);
+  touch-action: none;
+}
+.tilt-rail::before { content: ''; position: absolute; left: 50%; top: 10px; bottom: 10px; width: 2px; background: var(--me); opacity: 0.35; }
+.tilt-puck {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 52px;
+  height: 52px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: var(--me);
+  box-shadow: 0 0 24px var(--me);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  transition: left 0.05s linear;
+}
+.tilt-control.drag .tilt-puck { cursor: grab; }
+.tilt-ask { width: 100%; height: 64px; font-size: 22px; border-radius: 32px; }

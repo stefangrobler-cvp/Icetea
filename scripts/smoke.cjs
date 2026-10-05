@@ -52,7 +52,7 @@ if (!game) { console.error('Usage: node scripts/smoke.cjs <game-id> [screenshot-
   }
   if (await screen.$eval('#start', (b) => b.disabled)) throw new Error('START stayed disabled: no mode works with one phone');
   await screen.click('#start');
-  await phone.waitForSelector('#controller .zone', { timeout: 10000 });
+  await phone.waitForSelector('#controller > *', { timeout: 10000 });
 
   // Swipe up and down for a while.
   const cdp = await phoneCtx.newCDPSession(phone);

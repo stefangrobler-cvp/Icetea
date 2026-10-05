@@ -96,5 +96,7 @@ Each control has one agreed look and behaviour across all games:
 |---|---|---|---|
 | `swipe` | `id`, `label?` (emoji), `look?`: `bar` or `rod` | Big swipe area in the player's colour. Drag up and down anywhere in it; ▲▼ hints; it glows while touched; a small preview moves with your thumb | number 0 (top) .. 1 (bottom) |
 | `aim` | `id`, `label?` (emoji) | Aiming circle. Touch, slide round to aim, let go to fire. Layout params: `target` (`left`/`right`: the side to aim at), `targetIcon` (emoji marking it), `ready`, `seconds`, `maxAngle` (degrees from flat; steeper directions are shaded and blocked) | `{ angle }` while aiming, `{ angle, release: true }` when let go (radians, 0 = right, down is positive) |
+| `tap` | `id`, `label?` (emoji) | Giant button in the player's colour with a big emoji; lights up while pressed. Layout params: `ready` (`false` dims it, e.g. not your turn), `icon` (emoji instead of the label), `text` (a few words) | `{ down: true }` when pressed, `{ down: false }` when let go (always delivered) |
+| `tilt` | `id`, `label?` (emoji on the puck) | A rail with a glowing puck that follows the phone's left/right tilt. iPhones show "📲 Tap to tilt" first (permission). Without a motion sensor, or if refused, the rail is dragged with a finger instead. Shown as a slim strip above the other control | number -1 (left) .. 1 (right) |
 
 New controls are added only when a game genuinely can't be built from these.

@@ -1,0 +1,53 @@
+// Block Stacker's sounds, made on the fly with Web Audio (no sound files).
+// Playing into `audio.output` means the platform's mute button works.
+
+export function makeSounds(audio) {
+  const ctx = audio?.context;
+  const out = audio?.output;
+
+  function beep(freq, duration, type = 'square', volume = 0.2, when = 0, slideTo = null) {
+    if (!ctx || !out) return;
+    const t = ctx.currentTime + when;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, t);
+    if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, t + duration);
+    gain.gain.setValueAtTime(volume, t);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+    osc.connect(gain).connect(out);
+    osc.start(t);
+    osc.stop(t + duration + 0.02);
+  }
+
+  function rumble(duration, volume) {
+    if (!ctx || !out) return;
+    const t = ctx.currentTime;
+    const buffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * duration), ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 220;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(volume, t);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+    src.connect(filter).connect(gain).connect(out);
+    src.start(t);
+  }
+
+  return {
+    tick: () => beep(660, 0.1, 'square', 0.18),
+    go: () => beep(990, 0.18, 'square', 0.2),
+    turn: () => beep(740, 0.07, 'triangle', 0.15),
+    drop: () => beep(900, 0.22, 'triangle', 0.18, 0, 300),
+    land: (power = 0.5) => { beep(120 + power * 80, 0.12, 'square', 0.18 + power * 0.12); rumble(0.12, 0.2 * power); },
+    lost: () => beep(500, 0.5, 'sawtooth', 0.15, 0, 70),
+    warn: () => { beep(880, 0.16, 'square', 0.2); beep(660, 0.16, 'square', 0.2, 0.22); beep(880, 0.16, 'square', 0.2, 0.44); },
+    glitch: () => { rumble(1.1, 0.5); beep(60, 0.9, 'sawtooth', 0.12); },
+    win: () => [523, 659, 784, 1047].forEach((f, i) => beep(f, 0.16, 'square', 0.16, i * 0.09)),
+    lose: () => [392, 330, 262].forEach((f, i) => beep(f, 0.22, 'square', 0.15, i * 0.16)),
+  };
+}

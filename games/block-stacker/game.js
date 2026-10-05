@@ -1,0 +1,164 @@
+// Block Stacker, as a plug-in game. This is the only file the platform talks to.
+//
+// It exports `manifest` and `createGame(host)`. Everything the game needs from the
+// platform comes through `host` (see platform/contract/README.md); nothing here
+// imports platform code, so this folder can be lifted out on its own.
+
+import { manifest } from './manifest.js';
+import { Engine, PHASE } from './engine.js';
+import { Renderer } from './renderer.js';
+import { makeSounds } from './sounds.js';
+import { COLORS } from './config.js';
+
+export { manifest };
+
+const CELEBRATE = 2.2; // seconds to enjoy the final tower before the results
+
+export function createGame(host) {
+  const canvas = document.createElement('canvas');
+  canvas.style.cssText = 'position:absolute;inset:0;display:block;touch-action:none';
+  host.stage.appendChild(canvas);
+
+  // Colours come from the platform's theme (neon for now).
+  for (const key of ['background', 'line', 'cpu', 'text']) if (host.theme?.[key]) COLORS[key] = host.theme[key];
+
+  const engine = new Engine({ rng: host.random });
+  const renderer = new Renderer(canvas);
+  const sounds = makeSounds(host.audio);
+
+  let players = [];
+  let mode = 'team';
+  let ended = false;
+  let endIn = 0;
+  let totalTime = 0;
+  let lastDt = 1 / 60;
+  let best = 0;
+  const shown = {}; // seat -> last layout params sent, so phones only get changes
+
+  const avatar = (seat) => players.find((p) => p.seat === seat)?.avatar || '🙂';
+
+  // What each phone's tap button shows right now.
+  function phoneParams(seat) {
+    const s = engine.state;
+    if (s.phase === PHASE.COUNTDOWN) return { ready: false, icon: String(Math.max(1, Math.ceil(s.countdown))) };
+    if (s.phase === PHASE.OVER) return { ready: false, icon: s.winner === 'cpu' ? '🤖' : '🏁' };
+    const tower = mode === 'team' ? s.towers[0] : s.towers.find((t) => t.seats[0] === seat);
+    if (!tower) return { ready: false, icon: '⏳' };
+    if (tower.out) return { ready: false, icon: '💔' };
+    if (tower.hanging?.seat === seat) return { ready: true, icon: '🧊', text: 'Tap!' };
+    if (mode === 'team') return { ready: false, icon: avatar(engine.currentSeat(tower)), text: '⏳' };
+    return { ready: false, icon: '⏳' };
+  }
+
+  function updatePhones(force = false) {
+    for (const p of players) {
+      const params = phoneParams(p.seat);
+      const key = JSON.stringify(params);
+      if (!force && shown[p.seat] === key) continue;
+      shown[p.seat] = key;
+      host.setLayout(p.seat, 'play', params);
+    }
+  }
+
+  function report(type, extra = {}) {
+    host.report({ type, ...extra });
+  }
+
+  function handle(events) {
+    renderer.handleEvents(events, engine.view());
+    for (const ev of events) {
+      if (ev.type === 'countdown') sounds.tick();
+      else if (ev.type === 'go') sounds.go();
+      else if (ev.type === 'turn') {
+        sounds.turn();
+        host.vibrate(ev.seat, 30);
+      } else if (ev.type === 'drop') {
+        sounds.drop();
+        host.vibrate(ev.seat, 40);
+      } else if (ev.type === 'land') {
+        sounds.land(ev.power);
+        const scores = engine.scores();
+        best = Math.max(best, ...Object.values(scores));
+        report('point-scored', { side: mode === 'team' ? 'team' : engine.state.towers[ev.tower].side, scores });
+      } else if (ev.type === 'lost') {
+        sounds.lost();
+        host.vibrate(ev.seat, 150);
+        if (mode === 'team') report('point-scored', { side: 'cpu', scores: engine.scores() });
+      } else if (ev.type === 'out') {
+        host.vibrate(ev.seat, 300);
+      } else if (ev.type === 'warn') {
+        sounds.warn();
+      } else if (ev.type === 'glitch') {
+        sounds.glitch();
+        for (const p of players) host.vibrate(p.seat, 400);
+      } else if (ev.type === 'win') {
+        if (ev.winner === 'cpu') sounds.lose(); else sounds.win();
+        if (ev.winner && ev.winner !== 'cpu') report('highlight', { name: mode === 'team' ? 'tower-complete' : 'tallest-tower', side: ev.winner });
+        endIn = CELEBRATE;
+      }
+    }
+  }
+
+  return {
+    start({ mode: modeId, options, players: list }) {
+      players = list.map((p) => ({ ...p }));
+      mode = modeId === 'versus' ? 'versus' : 'team';
+      ended = false;
+      endIn = 0;
+      best = 0;
+      for (const k of Object.keys(shown)) delete shown[k];
+      renderer.players = Object.fromEntries(players.map((p) => [p.seat, { avatar: p.avatar, color: p.color }]));
+      engine.setDifficulty(options.difficulty);
+      engine.startMatch(mode, players.map((p) => ({ seat: p.seat, side: p.side, color: p.color, boost: p.boost || 0 })));
+      totalTime = engine.state.time;
+      updatePhones(true);
+      report('match-started');
+    },
+
+    input(seat, control, value) {
+      if (control === 'drop' && value?.down === true) engine.drop(seat);
+      else if (control === 'nudge') engine.tilt(seat, value);
+    },
+
+    update(dt) {
+      lastDt = dt;
+      if (ended) return;
+      handle(engine.step(dt));
+      updatePhones();
+      if (endIn > 0) {
+        endIn -= dt;
+        if (endIn <= 0) {
+          ended = true;
+          host.message('all', null);
+          report('match-ended', { winner: engine.state.winner, scores: engine.scores(), stats: { tallestTower: best } });
+        }
+      }
+    },
+
+    draw() {
+      renderer.draw({ ...engine.view(), totalTime }, lastDt);
+    },
+
+    pause() { engine.pause(); },
+    resume() { engine.resume(); },
+
+    optionChanged(id, value) {
+      if (id === 'difficulty') engine.setDifficulty(value);
+    },
+
+    // A kid joined during a team game: they join the turns.
+    playerJoined(player) {
+      if (mode !== 'team' || players.some((p) => p.seat === player.seat)) return false;
+      if (!engine.addPlayer(player.seat, { side: 'team', color: player.color, boost: player.boost || 0 })) return false;
+      players.push({ ...player, side: 'team' });
+      renderer.players[player.seat] = { avatar: player.avatar, color: player.color };
+      updatePhones(true);
+      return true;
+    },
+
+    stop() {
+      renderer.destroy();
+      canvas.remove();
+    },
+  };
+}

@@ -1,3 +1,7 @@
 {
-  "games": ["pong", "soccer"]
+  "games": [
+    "pong",
+    "soccer",
+    "block-stacker"
+  ]
 }

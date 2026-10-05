@@ -8,8 +8,10 @@
 
 import { swipe } from './swipe.js';
 import { aim } from './aim.js';
+import { tap } from './tap.js';
+import { tilt } from './tilt.js';
 
-const CONTROLS = { swipe, aim };
+const CONTROLS = { swipe, aim, tap, tilt };
 
 /**
  * Build a layout (one or two controls side by side) inside `container`.
@@ -17,7 +19,8 @@ const CONTROLS = { swipe, aim };
  */
 export function mountLayout(container, controls, params, ctx) {
   container.replaceChildren();
-  container.className = 'zones';
+  // Tilt is a slim rail: stack it above the other control instead of side by side.
+  container.className = controls.some((c) => c.control === 'tilt') ? 'zones stacked' : 'zones';
   const parts = controls.map((spec) => {
     const make = CONTROLS[spec.control];
     const el = document.createElement('div');
@@ -34,6 +37,7 @@ export function mountLayout(container, controls, params, ctx) {
     flash() {
       for (const p of parts) {
         const target = p.el.querySelector('.dial') || p.el;
+        if (target.classList.contains('tilt-control')) continue;
         target.classList.remove('buzz');
         void target.offsetWidth; // restart the animation
         target.classList.add('buzz');

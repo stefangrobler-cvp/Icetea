@@ -16,7 +16,7 @@ Read `docs/ARCHITECTURE.md` and `platform/contract/README.md` before changing ei
 - **Games are sealed.** A game only touches its own folder and talks to the platform
   through `host` (contract v1). No imports outside the folder, no network, no browser
   storage, no platform globals. `test/contract.test.js` enforces this.
-- **Controller kit stays small.** Only `swipe` (looks `bar`, `rod`) and `aim` exist.
+- **Controller kit stays small.** Only `swipe` (looks `bar`, `rod`), `aim`, `tap` and `tilt` exist.
   Reuse them and add layouts freely (a game may switch layouts mid-match with
   `host.setLayout`). **Ask the owner before adding a new control type.**
 - **Phase one only.** Do not build sign-in, accounts/profiles beyond guest nickname +

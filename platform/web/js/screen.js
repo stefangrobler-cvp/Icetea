@@ -533,7 +533,8 @@ function startScreen() {
         icon: match.manifest.icon,
         seats: match.seats,
         sides: match.sides,
-        sideOrder: match.modeSpec.sides,
+        // Only sides someone is playing on (a 4-way race with 2 players shows 2 scores).
+        sideOrder: match.modeSpec.sides.filter((side) => side === match.modeSpec.computer || match.seats.some((seat) => match.sides[seat] === side)),
         sideColors: sideColors(match),
         scores: match.scores,
         layouts: match.layouts, // seat -> { id, params }

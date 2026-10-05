@@ -64,7 +64,7 @@ test('the contract checker catches broken manifests', async () => {
 });
 
 test('the controller kit is small: only the controls the games use', () => {
-  assert.deepEqual(Object.keys(CONTROLS).sort(), ['aim', 'swipe']);
+  assert.deepEqual(Object.keys(CONTROLS).sort(), ['aim', 'swipe', 'tap', 'tilt']);
 });
 
 test('players are put on sides: the computer keeps its side, people share the rest', () => {
