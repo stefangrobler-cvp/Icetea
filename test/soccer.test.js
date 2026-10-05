@@ -219,3 +219,16 @@ test('attackers can pass back; defenders clear forward and never score own goals
   assert.ok(events.some((x) => x.type === 'hit' && x.paddle === 'left-def'));
   assert.ok(e.state.ball.vx > 0);
 });
+
+test('help for a younger player: only their players get longer, and still never touch', () => {
+  for (const difficulty of ['easy', 'medium', 'hard']) {
+    const e = new Engine();
+    e.setSettings({ difficulty });
+    e.startMatch([1, 2], { sides: { 1: 'left', 2: 'right' }, colors: {}, boosts: { 1: 2 } });
+    const kid = e.state.paddles.find((p) => p.id === 'left-def');
+    const adult = e.state.paddles.find((p) => p.id === 'right-def');
+    assert.ok(kid.h > adult.h, difficulty);
+    const gap = kid.offsets[1] - kid.offsets[0];
+    assert.ok(kid.h < gap, `${difficulty}: players on a rod stay apart`);
+  }
+});

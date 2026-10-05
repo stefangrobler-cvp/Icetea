@@ -9,9 +9,10 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { WebSocketServer } from 'ws';
 import QRCode from 'qrcode';
+import compression from 'compression';
 import { MSG, MAX_PLAYERS } from '../shared/protocol.js';
 import { loadCatalogue } from './catalogue.js';
-import { createMetrics, fileStore } from './metrics.js';
+import { createMetrics, fileStore, postgresStore } from './metrics.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const PORT = process.env.PORT || 3000;
@@ -20,12 +21,19 @@ const HEARTBEAT_MS = 2500; // how often we check that phones are still there
 const STATS_KEY = process.env.STATS_KEY || ''; // secret for the numbers page; no key = page off
 
 const catalogue = await loadCatalogue(ROOT);
-const metrics = createMetrics(fileStore(process.env.METRICS_FILE || path.join(ROOT, 'data', 'metrics.jsonl')));
+// Measurement goes to a database when DATABASE_URL is set, otherwise to a file.
+const store = process.env.DATABASE_URL
+  ? await postgresStore(process.env.DATABASE_URL)
+  : fileStore(process.env.METRICS_FILE || path.join(ROOT, 'data', 'metrics.jsonl'));
+const metrics = createMetrics(store, await store.readAll());
 
 // ---------- web pages ----------
 
 const app = express();
 app.disable('x-powered-by');
+app.use(compression()); // smaller downloads on mobile data
+// Pages and code are re-checked on every visit (so updates arrive at once); the font never changes.
+app.use('/fonts', express.static(path.join(ROOT, 'platform', 'web', 'fonts'), { maxAge: '365d', immutable: true }));
 const files = (dir) => express.static(path.join(ROOT, dir), { maxAge: 0, extensions: ['html'] });
 app.use('/platform/shared', files('platform/shared'));
 app.use('/platform/contract', files('platform/contract'));
@@ -55,11 +63,11 @@ app.get('/stats', (req, res) => {
   const rows = Object.entries(s).filter(([k]) => k !== 'perGame')
     .map(([k, v]) => `<tr><td>${k}</td><td>${v ?? '–'}</td></tr>`).join('');
   const games = Object.entries(s.perGame)
-    .map(([g, v]) => `<tr><td>${g}</td><td>${v.started}</td><td>${v.finished}</td><td>${v.rematches}</td></tr>`).join('');
+    .map(([g, v]) => `<tr><td>${g}</td><td>${v.started}</td><td>${v.finished}</td><td>${v.rematches}</td><td>${v.thumbsUp || 0} / ${v.thumbsDown || 0}</td></tr>`).join('');
   res.send(`<!doctype html><meta name="viewport" content="width=device-width"><title>Numbers</title>
 <style>body{font-family:system-ui;background:#05010f;color:#eee;padding:16px}td{padding:4px 12px;border-bottom:1px solid #333}</style>
 <h2>Numbers</h2><table>${rows}</table><h3>Games</h3>
-<table><tr><td>game</td><td>started</td><td>finished</td><td>rematches</td></tr>${games}</table>`);
+<table><tr><td>game</td><td>started</td><td>finished</td><td>rematches</td><td>👍 / 👎</td></tr>${games}</table>`);
 });
 
 // ---------- rooms ----------

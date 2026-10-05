@@ -28,6 +28,10 @@ export const PADDLE_GLIDE_SPEED = 7000;
 // Which of a team's two rods a swipe pad moves.
 export const LANE = { DEFENCE: 0, ATTACK: 1 };
 
+// Help for a younger player, chosen on their own phone (0 none, 1 a little, 2 a lot):
+// their players are this much longer. It never makes anyone else's game harder.
+export const BOOST = [1, 1.3, 1.6];
+
 export const SOCCER = {
   goalHeight: { easy: 380, medium: 320, hard: 280 }, // the goal mouth in the middle of each end, per level
   goalDepth: 46, // how far the net sticks out behind the goal line (drawing only)

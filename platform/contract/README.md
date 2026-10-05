@@ -50,7 +50,7 @@ others in seat order.
 | `host.…` | What it is |
 |---|---|
 | `stage` | The element on the big screen to draw in (fills the screen) |
-| `players` | `[{ seat, nickname, avatar, color, side }]` for this match. No device or account details |
+| `players` | `[{ seat, nickname, avatar, color, side, boost }]` for this match. No device or account details. `boost` (0 none, 1 a little, 2 a lot) is help a younger player chose on their phone: make the game easier for *that* player (e.g. a bigger paddle), never harder for anyone else |
 | `theme` | Colours to draw with: `background`, `line`, `ball`, `cpu`, `text`. Use these rather than hard-coding colours, so families' themes can re-skin the game later |
 | `audio` | `{ context, output }`: a Web Audio context and the node to play into (respects the mute button). May be `null` |
 | `random()` | Random number 0..1 |

@@ -27,9 +27,9 @@
 
   <!-- 1. Welcome (the first tap also lets the browser play sound) -->
   <section id="tap" class="overlay solid welcome">
-    <p class="welcome-icons" id="welcome-icons">🏓 ⚽</p>
     <h1 class="title">NEON ARCADE</h1>
-    <p class="medium">Family games on this screen, played with your phones</p>
+    <canvas id="demo" class="demo" aria-label="Two phones moving the paddles on the big screen"></canvas>
+    <p class="medium">Family games on this screen, played with your phones <span id="welcome-icons"></span></p>
     <button id="welcome-start" class="go start-btn welcome-btn">▶ Start on this screen</button>
     <button id="welcome-howto" class="menu-btn">❓ How to play</button>
     <p class="small rotate-hint">Turn the tablet sideways for the best view</p>
@@ -96,6 +96,10 @@
     <div class="row">
       <button id="again" class="go start-btn">🔁 Play again</button>
       <button id="change" class="start-btn">🎮 Games</button>
+    </div>
+    <div class="row thumbs" id="screen-thumbs">
+      <button data-vote="up" aria-label="Liked it">👍</button>
+      <button data-vote="down" aria-label="Didn't like it">👎</button>
     </div>
   </section>
 

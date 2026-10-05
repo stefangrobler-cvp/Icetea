@@ -29,6 +29,35 @@ export function fileStore(file) {
   };
 }
 
+/**
+ * Store events in Postgres (any provider: Neon, Render, Supabase...). Used when
+ * DATABASE_URL is set. `client` can be passed in for tests; it needs query(sql, params).
+ */
+export async function postgresStore(url, client = null) {
+  let db = client;
+  if (!db) {
+    const { default: pg } = await import('pg');
+    db = new pg.Pool({ connectionString: url, max: 3 });
+  }
+  await db.query(`create table if not exists platform_events (
+    id bigserial primary key,
+    at timestamptz not null default now(),
+    type text not null,
+    data jsonb not null
+  )`);
+  return {
+    append(line) {
+      const e = JSON.parse(line);
+      db.query('insert into platform_events (at, type, data) values ($1, $2, $3)', [e.at, e.type, e])
+        .catch((err) => console.error('Measurement not saved:', err.message));
+    },
+    async readAll() {
+      const r = await db.query('select data from platform_events order by id');
+      return r.rows.map((row) => row.data);
+    },
+  };
+}
+
 /** Keep events in memory only (tests). */
 export function memoryStore() {
   const lines = [];
@@ -45,12 +74,14 @@ export const SCREEN_METRICS = {
   rematch: ['game'],
   drop_out: ['game', 'seat'],
   latency: ['samples', 'p50', 'p95', 'directShare'],
+  feedback: ['game', 'vote', 'from'], // thumbs up / down after a match
 };
 
 const hashTag = (tag) => crypto.createHash('sha256').update(`fgp:${tag}`).digest('hex').slice(0, 16);
 
-export function createMetrics(store) {
-  const events = store.readAll();
+/** `initial` is what the store already holds (read once at start-up). */
+export function createMetrics(store, initial = null) {
+  const events = initial ?? store.readAll();
   const seen = new Set(events.filter((e) => e.tag).map((e) => `${e.type}:${e.tag}`));
 
   function record(type, fields = {}) {
@@ -101,6 +132,12 @@ export function createMetrics(store) {
     for (const e of started) (perGame[e.game] ||= { started: 0, finished: 0, rematches: 0 }).started += 1;
     for (const e of ended) (perGame[e.game] ||= { started: 0, finished: 0, rematches: 0 }).finished += 1;
     for (const e of of('rematch')) (perGame[e.game] ||= { started: 0, finished: 0, rematches: 0 }).rematches += 1;
+    const votes = of('feedback');
+    for (const e of votes) {
+      const g = (perGame[e.game] ||= { started: 0, finished: 0, rematches: 0 });
+      g.thumbsUp = (g.thumbsUp || 0) + (e.vote === 'up' ? 1 : 0);
+      g.thumbsDown = (g.thumbsDown || 0) + (e.vote === 'down' ? 1 : 0);
+    }
     const firstMatch = started.filter((e) => e.firstMatch && Number.isFinite(e.msSinceStart)).map((e) => e.msSinceStart);
     const lat = of('latency');
     const durations = ended.map((e) => e.durationMs).filter(Number.isFinite);
@@ -121,6 +158,8 @@ export function createMetrics(store) {
       medianDelayMs: median(lat.map((e) => e.p50).filter(Number.isFinite)),
       p95DelayMs: median(lat.map((e) => e.p95).filter(Number.isFinite)),
       directConnectionPct: lat.length ? Math.round(median(lat.map((e) => e.directShare ?? 0)) * 100) : null,
+      thumbsUpPct: votes.length ? pct(votes.filter((e) => e.vote === 'up').length, votes.length) : null,
+      votes: votes.length,
       perGame,
     };
   }

@@ -1,6 +1,6 @@
 // Ping Pong rules: one paddle per side, score by getting the ball past it.
 
-import { COURT, PADDLE, BALL, LANE, MAX_BOUNCE_ANGLE } from './config.js';
+import { COURT, PADDLE, BALL, LANE, MAX_BOUNCE_ANGLE, BOOST } from './config.js';
 import { capsuleContact, reflect, setVelocity, applyTraction, limitAngle } from './physics.js';
 
 const DEG = Math.PI / 180;
@@ -26,14 +26,18 @@ export const rules = {
 
   ballSpeed: (diff) => diff.ballSpeed,
 
-  /** `sides` maps each player's seat to 'left' or 'right'; `colors` maps seat -> colour, plus `cpu`. */
-  createPaddles({ mode, diff, slots, sides, colors }) {
+  /**
+   * `sides` maps each player's seat to 'left' or 'right'; `colors` maps seat -> colour,
+   * plus `cpu`; `boosts` maps seat -> 0..2 (a longer paddle for a younger player).
+   */
+  createPaddles({ mode, diff, slots, sides, colors, boosts = {} }) {
     const h = diff.paddleHeight;
+    const hFor = (slot) => Math.round(Math.min(h * (BOOST[boosts[slot]] || 1), COURT.height * 0.45));
     if (mode === 'versus') {
-      return slots.map((slot) => paddle({ id: `p${slot}`, side: sides[slot], slot, color: colors[slot], h }));
+      return slots.map((slot) => paddle({ id: `p${slot}`, side: sides[slot], slot, color: colors[slot], h: hFor(slot) }));
     }
     // Team: each kid gets their own paddle on the left; they can overlap freely.
-    const list = slots.map((slot) => paddle({ id: `p${slot}`, side: 'left', slot, color: colors[slot], h }));
+    const list = slots.map((slot) => paddle({ id: `p${slot}`, side: 'left', slot, color: colors[slot], h: hFor(slot) }));
     list.push(paddle({ id: 'cpu', side: 'right', color: colors.cpu, h }));
     return list;
   },

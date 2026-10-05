@@ -5,7 +5,7 @@
 // only from the controller kit. No game code ever runs on the phone.
 
 import { MSG, ACTIONS } from '/platform/shared/protocol.js';
-import { AVATARS, cleanProfile, defaultAvatar, nicknameAllowed } from '/platform/shared/profile.js';
+import { AVATARS, BOOSTS, cleanProfile, defaultAvatar, nicknameAllowed } from '/platform/shared/profile.js';
 import { Connection, keepScreenOn } from './net.js';
 import { PhoneLink } from './direct.js';
 import { mountLayout } from './kit/kit.js';
@@ -149,6 +149,10 @@ $('pause').addEventListener('click', () => command(ACTIONS.PAUSE));
 $('resume').addEventListener('click', () => command(ACTIONS.RESUME));
 $('again').addEventListener('click', () => { keepScreenOn(); command(ACTIONS.PLAY_AGAIN); });
 $('change').addEventListener('click', () => command(ACTIONS.CHANGE_GAME));
+$('thumbs').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-vote]');
+  if (btn && !state?.results?.votes?.[seat]) command(ACTIONS.FEEDBACK, { vote: btn.dataset.vote });
+});
 
 // Game, mode and option buttons are made from what the big screen sends; one handler for all.
 document.body.addEventListener('click', (e) => {
@@ -182,6 +186,17 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('pageshow', (e) => { if (e.persisted) conn.reconnectNow(); });
 
 // ---------- who are you? ----------
+
+// Help for a younger player (bigger paddle). Remembered on this phone with the nickname.
+$('boost-row').innerHTML = BOOSTS.map((b) => `<button data-boost="${b.level}"><span class="icon">${b.icon}</span>${b.label}</button>`).join('');
+$('boost-row').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-boost]');
+  if (!btn || !profile) return;
+  profile = { ...profile, boost: Number(btn.dataset.boost) };
+  localStorage.setItem('fgp.profile', JSON.stringify(profile));
+  sendProfile();
+  render();
+});
 
 function sendProfile() {
   if (profileConfirmed && profile && seat) command(ACTIONS.PROFILE, profile);
@@ -218,7 +233,7 @@ $('profile-done').addEventListener('click', () => {
   }
   const tidy = cleanProfile({ name: typed, avatar: pickedAvatar }, seat || 1);
   // An empty nickname stays empty, so it shows as "Player 1" or "Player 2" for whichever seat we get.
-  profile = { name: typed ? tidy.name : '', avatar: tidy.avatar };
+  profile = { name: typed ? tidy.name : '', avatar: tidy.avatar, boost: profile?.boost || 0 };
   localStorage.setItem('fgp.profile', JSON.stringify(profile));
   sessionStorage.setItem('fgp.profileRoom', roomCode);
   profileConfirmed = true;
@@ -277,6 +292,7 @@ function render() {
   show('lobby', phase === 'lobby');
   if (phase === 'lobby') {
     $('you-are').textContent = profile?.name ? `Hi ${profile.name}!` : `You are Player ${seat}`;
+    for (const b of $('boost-row').children) b.classList.toggle('selected', Number(b.dataset.boost) === (profile?.boost || 0));
     const key = JSON.stringify([state.catalogue, state.selection]);
     if (key !== lastLobby) {
       lastLobby = key;
@@ -342,6 +358,12 @@ function render() {
     $('over-text').textContent = text;
     $('over-text').style.color = r.computerWon ? '#ffe600' : state.players[r.winners[0]]?.color || '#ffffff';
     $('again').disabled = !state.canStart;
+    // Did you like it? One tap, then the other thumb fades.
+    const mine = r.votes?.[seat];
+    for (const b of $('thumbs').children) {
+      b.classList.toggle('selected', b.dataset.vote === mine);
+      b.disabled = Boolean(mine) && b.dataset.vote !== mine;
+    }
   }
 }
 

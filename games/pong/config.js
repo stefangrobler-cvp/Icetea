@@ -34,6 +34,10 @@ export const PADDLE_GLIDE_SPEED = 7000;
 
 export const LANE = { MAIN: 0 };
 
+// Help for a younger player, chosen on their own phone (0 none, 1 a little, 2 a lot):
+// their paddle is this much longer. It never makes anyone else's game harder.
+export const BOOST = [1, 1.35, 1.7];
+
 // Ball speed is in court units per second (the court is 1600 wide).
 // `ai` controls the computer player in team mode:
 //   maxSpeed   - how fast the computer paddle can move

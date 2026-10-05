@@ -210,3 +210,12 @@ test('pause: change the level on the fly, then carry on with the same scores', (
   toPlay(e);
   assert.deepEqual(e.state.scores, { left: 2, right: 3 });
 });
+
+test('help for a younger player: only their paddle gets longer', () => {
+  const e = new Engine();
+  e.startMatch([1, 2], { sides: { 1: 'left', 2: 'right' }, colors: {}, boosts: { 1: 2 } });
+  const [kid, adult] = e.state.paddles;
+  assert.equal(adult.h, DIFFICULTIES.easy.paddleHeight);
+  assert.ok(kid.h > adult.h * 1.5);
+  assert.ok(kid.h <= COURT.height * 0.45);
+});

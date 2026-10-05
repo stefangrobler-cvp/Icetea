@@ -43,6 +43,9 @@
   <section id="lobby" class="overlay hidden">
     <p id="you-are" class="medium neon" style="color: var(--me)">Hi!</p>
     <p class="small">Tap your picture at the top to change it</p>
+    <div class="settings">
+      <div class="row boost-row" id="boost-row" aria-label="Help for younger players"></div>
+    </div>
     <div class="settings" id="lobby-settings"></div>
     <button id="start" class="go start-btn">▶ START</button>
     <p id="start-hint" class="small"></p>
@@ -60,6 +63,10 @@
   <section id="results" class="overlay dim hidden">
     <p id="over-icon" class="big crowned">🏆</p>
     <p id="over-text" class="medium neon"></p>
+    <div class="row thumbs" id="thumbs">
+      <button data-vote="up" aria-label="Liked it">👍</button>
+      <button data-vote="down" aria-label="Didn't like it">👎</button>
+    </div>
     <div class="stack">
       <button id="again" class="go">🔁 Play again</button>
       <button id="change">🎮 Games</button>

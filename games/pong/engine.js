@@ -89,13 +89,15 @@ export class Engine {
 
   /**
    * Start a fresh match. `slots` are the players' seats, e.g. [1, 2];
-   * `sides` maps seat -> 'left' | 'right'; `colors` maps seat -> colour, plus `cpu`.
+   * `sides` maps seat -> 'left' | 'right'; `colors` maps seat -> colour, plus `cpu`;
+   * `boosts` maps seat -> 0..2, extra help for that player (bigger paddle/players).
    */
-  startMatch(slots, { sides = {}, colors = {} } = {}) {
+  startMatch(slots, { sides = {}, colors = {}, boosts = {} } = {}) {
     const s = this.state;
     this.slots = [...slots].sort();
     this.sides = { ...sides };
     this.colors = { ...colors };
+    this.boosts = { ...boosts };
     s.paddles = [];
     this.rebuildPaddles(this.slots);
     s.matchId += 1;
@@ -117,7 +119,7 @@ export class Engine {
     const s = this.state;
     const diff = DIFFICULTIES[s.settings.difficulty];
     const old = new Map(s.paddles.map((p) => [p.id, p]));
-    s.paddles = this.rules.createPaddles({ mode: s.settings.mode, diff, slots, sides: this.sides, colors: this.colors });
+    s.paddles = this.rules.createPaddles({ mode: s.settings.mode, diff, slots, sides: this.sides, colors: this.colors, boosts: this.boosts || {} });
     for (const p of s.paddles) {
       const was = old.get(p.id);
       const at = (y, from) => p.minY + clamp((y - from.minY) / (from.maxY - from.minY || 1), 0, 1) * (p.maxY - p.minY);
@@ -133,11 +135,12 @@ export class Engine {
    * A phone joined while a team-v-computer match is on: bring that kid into the
    * team straight away.
    */
-  addPlayer(slot) {
+  addPlayer(slot, boost = 0) {
     const s = this.state;
     if (!this.inMatch || s.settings.mode !== 'team' || this.slots.includes(slot)) return false;
     this.slots = [...this.slots, slot].sort();
     this.sides[slot] = 'left';
+    this.boosts = { ...this.boosts, [slot]: boost };
     this.rebuildPaddles(this.slots);
     return true;
   }

@@ -600,3 +600,16 @@ body[data-game='soccer'] .zone {
 .dial-title { min-height: 1.3em; }
 
 .aim-control { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; text-align: center; }
+
+/* Phone: help for younger players */
+.phone .settings .boost-row button { font-size: 13px; padding: 8px 4px; }
+.phone .settings .boost-row button .icon { font-size: 24px; }
+
+/* Thumbs up / down after a match */
+.thumbs button { font-size: 40px; padding: 10px 28px; border-radius: 999px; }
+.thumbs button.selected { transform: scale(1.12); }
+#screen-thumbs button { font-size: 30px; padding: 6px 20px; }
+
+/* Welcome demo */
+.demo { width: min(620px, 86vw); aspect-ratio: 640 / 240; display: block; }
+.welcome { gap: 14px; }

@@ -1,7 +1,7 @@
 // Foosball-style soccer: two rods per team, three players on each rod.
 // The ball bounces off every wall except the goal mouths at each end.
 
-import { COURT, BALL, LANE, SOCCER, TRACTION } from './config.js';
+import { COURT, BALL, LANE, SOCCER, TRACTION, BOOST } from './config.js';
 import { capsuleContact, limitAngle, swipeStrength } from './physics.js';
 
 /** Size of the goal mouth for a level (bigger on Easy, so goals come more often). */
@@ -10,10 +10,12 @@ const goalTop = (difficulty) => COURT.height / 2 - goalHeight(difficulty) / 2;
 const goalBottom = (difficulty) => COURT.height / 2 + goalHeight(difficulty) / 2;
 const POST_RADIUS = 7;
 
-function rod({ side, lane, slot = null, color, diff }) {
+function rod({ side, lane, slot = null, color, diff, boost = 0 }) {
   let h = Math.round(diff.paddleHeight * SOCCER.playerLength);
   if (slot === null) h = Math.min(h, SOCCER.cpuMaxPlayerLength);
   const n = SOCCER.playersPerRod[lane];
+  // A younger player's players are longer, but never so long they touch each other.
+  h = Math.round(Math.min(h * (BOOST[boost] || 1), (COURT.height - SOCCER.overlap) / n - 40));
   // Each player can slide over a band of the pitch; with this spacing the bands
   // of neighbouring players overlap by SOCCER.overlap, whatever the player size.
   const S = (COURT.height - SOCCER.overlap) / n;
@@ -41,10 +43,10 @@ export const rules = {
   ballSpeed: (diff) => diff.ballSpeed,
 
   /** `sides` maps each player's seat to 'left' or 'right'; `colors` maps seat -> colour, plus `cpu`. */
-  createPaddles({ mode, diff, slots, sides, colors }) {
+  createPaddles({ mode, diff, slots, sides, colors, boosts = {} }) {
     const team = (side, owners, color) => [
-      rod({ side, lane: LANE.DEFENCE, slot: owners[0], color: color(owners[0]), diff }),
-      rod({ side, lane: LANE.ATTACK, slot: owners[1], color: color(owners[1]), diff }),
+      rod({ side, lane: LANE.DEFENCE, slot: owners[0], color: color(owners[0]), diff, boost: boosts[owners[0]] }),
+      rod({ side, lane: LANE.ATTACK, slot: owners[1], color: color(owners[1]), diff, boost: boosts[owners[1]] }),
     ];
     const kidColor = (slot) => colors[slot];
     if (mode === 'versus') {

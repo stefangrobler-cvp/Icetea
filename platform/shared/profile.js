@@ -4,6 +4,14 @@
 export const AVATARS = ['🦊', '🐼', '🐯', '🐸', '🦄', '🐵', '🐶', '🐱', '🦁', '🐨', '🐰', '🐙'];
 export const NAME_MAX = 12; // letters
 
+// Help for a younger player: 0 none, 1 a little, 2 a lot. Games make that
+// player's paddle (or players) bigger; it never makes anyone else's game harder.
+export const BOOSTS = [
+  { level: 0, icon: '💪', label: 'No help' },
+  { level: 1, icon: '🐣', label: 'A little help' },
+  { level: 2, icon: '🐣🐣', label: 'Lots of help' },
+];
+
 /** The avatar a player gets if they haven't picked one. */
 export const defaultAvatar = (seat) => AVATARS[(seat - 1) % AVATARS.length];
 
@@ -30,7 +38,8 @@ export function cleanProfile(profile, seat) {
   let name = raw.slice(0, NAME_MAX).join('').trim();
   if (!nicknameAllowed(name)) name = '';
   const avatar = AVATARS.includes(profile?.avatar) ? profile.avatar : defaultAvatar(seat);
-  return { name: name || `Player ${seat}`, avatar };
+  const boost = [0, 1, 2].includes(profile?.boost) ? profile.boost : 0;
+  return { name: name || `Player ${seat}`, avatar, boost };
 }
 
 /** "🦊 Mia" */

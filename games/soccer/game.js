@@ -168,7 +168,8 @@ export function createGame(host) {
       engine.setSettings({ mode, difficulty: options.difficulty });
       const sides = Object.fromEntries(players.map((p) => [p.seat, p.side]));
       const colors = { ...Object.fromEntries(players.map((p) => [p.seat, p.color])), cpu: COLORS.cpu };
-      engine.startMatch(players.map((p) => p.seat), { sides, colors });
+      const boosts = Object.fromEntries(players.map((p) => [p.seat, p.boost || 0]));
+      engine.startMatch(players.map((p) => p.seat), { sides, colors, boosts });
       updateLayouts();
       host.report({ type: 'match-started' });
     },
@@ -225,7 +226,7 @@ export function createGame(host) {
       players.push({ ...player, side: 'left' });
       renderer.players[player.seat] = { avatar: player.avatar, color: player.color };
       engine.colors[player.seat] = player.color;
-      engine.addPlayer(player.seat);
+      engine.addPlayer(player.seat, player.boost || 0);
       updateLayouts();
       return true;
     },

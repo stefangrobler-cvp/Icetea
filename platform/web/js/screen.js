@@ -12,6 +12,7 @@ import { CONTRACT_VERSION, EVENTS, validateGameObject, assignSides } from '/plat
 import { Connection, keepScreenOn } from './net.js';
 import { HostLinks } from './direct.js';
 import { unlock, gameAudio, fanfare, isMuted, setMuted } from './audio.js';
+import { startDemo } from './demo.js';
 
 const $ = (id) => document.getElementById(id);
 const theme = DEFAULT_THEME;
@@ -37,6 +38,9 @@ if (looksLikePhone && !forcedScreen) {
 }
 
 function startScreen() {
+  // The looping demo on the welcome screen (stops once we're past it).
+  let stopDemo = startDemo($('demo'), DEFAULT_THEME);
+
   // ---------- state ----------
 
   let catalogue = []; // game manifests from /api/catalogue
@@ -247,7 +251,8 @@ function startScreen() {
     }
     const sides = assignSides(mode, seats);
     const list = seats.map((seat) => ({
-      seat, nickname: players[seat].profile.name, avatar: players[seat].profile.avatar, color: theme.seats[seat], side: sides[seat],
+      seat, nickname: players[seat].profile.name, avatar: players[seat].profile.avatar,
+      color: theme.seats[seat], side: sides[seat], boost: players[seat].profile.boost || 0,
     }));
     const m = {
       id: ++matchCounter, manifest, modeSpec: mode, options: { ...selection.options }, seats, sides,
@@ -324,6 +329,7 @@ function startScreen() {
           computerWon: ev.winner != null && ev.winner === m.modeSpec.computer,
           team: Boolean(m.modeSpec.computer),
           scores: m.scores,
+          votes: {}, // seat (or 'screen') -> 'up' | 'down'
         };
         phase = 'results';
         fanfare();
@@ -348,7 +354,10 @@ function startScreen() {
     const mode = match.modeSpec;
     if (!mode.computer || match.seats.length >= mode.players.max || !match.game.playerJoined) return;
     const side = assignSides(mode, [...match.seats, seat])[seat];
-    const player = { seat, nickname: players[seat].profile.name, avatar: players[seat].profile.avatar, color: theme.seats[seat], side };
+    const player = {
+      seat, nickname: players[seat].profile.name, avatar: players[seat].profile.avatar,
+      color: theme.seats[seat], side, boost: players[seat].profile.boost || 0,
+    };
     if (safely(() => match.game.playerJoined(player))) {
       match.seats.push(seat);
       match.sides[seat] = side;
@@ -366,6 +375,7 @@ function startScreen() {
         }
         break;
       case ACTIONS.SETTINGS: changeSettings(data); break;
+      case ACTIONS.FEEDBACK: vote(data.slot ?? 'screen', data.vote); break;
       case ACTIONS.START:
         if (phase === 'lobby') startMatch(false);
         break;
@@ -392,6 +402,13 @@ function startScreen() {
         }
         break;
     }
+  }
+
+  // Thumbs up or down after a match: one vote per phone (and one from the big screen).
+  function vote(who, choice) {
+    if (phase !== 'results' || !results || results.votes[who] || !['up', 'down'].includes(choice)) return;
+    results.votes[who] = choice;
+    metric('feedback', { game: results.game, vote: choice, from: who === 'screen' ? 'screen' : 'phone' });
   }
 
   function changeSettings({ game, mode, options }) {
@@ -442,11 +459,19 @@ function startScreen() {
   $('pause').addEventListener('click', () => onAction(ACTIONS.PAUSE));
   $('resume').addEventListener('click', () => onAction(ACTIONS.RESUME));
   confirmTap($('menu'), 'Tap again to leave the game', () => onAction(ACTIONS.MENU));
+  $('screen-thumbs').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-vote]');
+    if (btn) onAction(ACTIONS.FEEDBACK, { vote: btn.dataset.vote });
+  });
   $('mute').textContent = isMuted() ? '🔇' : '🔊';
   $('mute').addEventListener('click', () => {
     unlock();
     setMuted(!isMuted());
-    $('mute').textContent = isMuted() ? '🔇' : '🔊';
+    $('screen-thumbs').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-vote]');
+    if (btn) onAction(ACTIONS.FEEDBACK, { vote: btn.dataset.vote });
+  });
+  $('mute').textContent = isMuted() ? '🔇' : '🔊';
   });
 
   // Game, mode and option buttons are made from the manifests; one click handler for all.
@@ -491,6 +516,7 @@ function startScreen() {
       matchId: match?.id || 0,
       players: Object.fromEntries(SEATS.map((s) => [s, {
         connected: players[s].connected, name: players[s].profile.name, avatar: players[s].profile.avatar, color: theme.seats[s],
+        boost: players[s].profile.boost || 0,
       }])),
       selection,
       canStart: canStart(),
@@ -549,6 +575,7 @@ function startScreen() {
     lastView = view;
 
     $('tap').classList.toggle('hidden', started || showHowto);
+    if (started && stopDemo) { stopDemo(); stopDemo = null; }
     $('howto').classList.toggle('hidden', !showHowto);
     $('lobby').classList.toggle('hidden', !started || showHowto || (phase !== 'lobby' && phase !== 'loading'));
     $('results').classList.toggle('hidden', !started || phase !== 'results');
@@ -562,7 +589,7 @@ function startScreen() {
     $('players').innerHTML = SEATS.map((s) => {
       const p = players[s];
       return `<div class="player-chip ${p.connected ? 'on' : ''}" style="--c:${theme.seats[s]}"><span class="chip-name">${
-        p.connected ? esc(label(s)) : `P${s}`}</span><small>${p.connected ? `Ready! ${lagText(s)}` : 'Waiting…'}</small></div>`;
+        p.connected ? esc(label(s)) + (p.profile.boost ? ` ${'🐣'.repeat(p.profile.boost)}` : '') : `P${s}`}</span><small>${p.connected ? `Ready! ${lagText(s)}` : 'Waiting…'}</small></div>`;
     }).join('');
     $('games').innerHTML = catalogue.map((g) => button('game', g.id,
       `<span>${g.icon}</span>${esc(g.name)}<span class="meta">${esc(g.ages)} · ${g.players.min === g.players.max ? g.players.min : `${g.players.min}–${g.players.max}`} 👤 · ${esc(g.matchLength)}</span>`,
@@ -599,6 +626,11 @@ function startScreen() {
       else if (results.team) { avatar = results.winners.map((s) => players[s].profile.avatar).join(''); text = 'TEAM WINS!'; }
       else { const s = results.winners[0]; avatar = players[s].profile.avatar; text = `${players[s].profile.name} wins!`; }
       $('winner-avatar').textContent = avatar;
+      const mine = results.votes.screen;
+      for (const b of $('screen-thumbs').children) {
+        b.classList.toggle('selected', b.dataset.vote === mine);
+        b.disabled = Boolean(mine) && b.dataset.vote !== mine;
+      }
       $('winner-text').textContent = text;
       $('winner-text').style.color = results.computerWon ? theme.cpu : theme.seats[results.winners[0]] || theme.text;
     }

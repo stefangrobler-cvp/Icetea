@@ -62,9 +62,16 @@ Phones vibrate where allowed (Android); elsewhere (iPhone) the controls flash.
 
 First-party only (no third-party code). The server writes one JSON line per event
 (`platform/server/metrics.js`) through a small storage interface, so the file used
-during alpha can be swapped for a database at roll-out. Device and screen tags
+during alpha can be swapped for a database: `postgresStore` is used when
+`DATABASE_URL` is set. Device and screen tags
 are random, stored hashed, and only used to count returning devices.
-Numbers page: `/stats?key=<STATS_KEY>` (off unless `STATS_KEY` is set).
+Numbers page: `/stats?key=<STATS_KEY>` (off unless `STATS_KEY` is set), including
+the 👍 / 👎 share per game from the after-match `feedback` vote.
+
+## Help for younger players
+
+Each player's profile carries `boost` (0–2), passed to games as `players[].boost`.
+Games decide what help means (Pong: longer paddle; Soccer: longer players).
 
 ## Not built yet (later phases)
 

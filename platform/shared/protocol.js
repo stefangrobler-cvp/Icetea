@@ -43,7 +43,8 @@ export const ACTIONS = {
   PLAY_AGAIN: 'playAgain', // rematch from the results screen
   CHANGE_GAME: 'changeGame', // results screen -> back to the lobby
   MENU: 'menu', // leave the match (from the pause screen) and go back to the lobby
-  PROFILE: 'profile', // { name, avatar } nickname and avatar, sent when the phone joins
+  PROFILE: 'profile', // { name, avatar, boost } nickname, avatar and help level, sent when the phone joins
+  FEEDBACK: 'feedback', // { vote: 'up' | 'down' } thumbs after a match (one per phone per match)
 };
 
 export const MAX_PLAYERS = 4;

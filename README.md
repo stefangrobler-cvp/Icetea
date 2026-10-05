@@ -32,11 +32,21 @@ npm test
 ```
 
 Settings (environment variables): `PORT`, `STATS_KEY` (turns on `/stats?key=...`),
-`METRICS_FILE` (where measurement is written; default `data/metrics.jsonl`).
+`METRICS_FILE` (where measurement is written; default `data/metrics.jsonl`),
+`DATABASE_URL` (a Postgres address; when set, measurement is kept in the
+`platform_events` table instead of the file, so it survives restarts).
 
 ## Hosting
 
 Alpha runs on Render's free plan from `render.yaml` (every push to the branch deploys).
 The free plan sleeps after 15 minutes without visitors and wipes saved files on
-restart, so measurement there is for testing only; roll-out will use proper
-servers with a database behind `platform/server/metrics.js`.
+restart, so without `DATABASE_URL` measurement there is for testing only. Set
+`DATABASE_URL` (any Postgres, e.g. a free Neon database) to keep it.
+
+## For players
+
+- Welcome screen plays a short looping demo: two phones moving the paddles.
+- Help for younger players: each phone picks 💪 / 🐣 / 🐣🐣 in the lobby; more
+  help means a longer paddle (Pong) or longer players (Soccer) for that player only.
+- After each match, 👍 / 👎 on the phones and the big screen (one vote each),
+  counted on the numbers page.
