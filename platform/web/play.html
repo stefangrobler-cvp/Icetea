@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#05010f">
+  <title>Neon Arcade controller</title>
+  <link rel="preload" href="/fonts/fredoka-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/css/platform.css">
+</head>
+<body class="phone">
+  <!-- The controller: built by the controller kit from the game's layout -->
+  <div id="controller" class="hidden"></div>
+
+  <!-- Top bar: my avatar, the score, pause -->
+  <div class="phone-top">
+    <div id="badge" class="me-badge">…</div>
+    <div id="score" class="phone-score hidden"></div>
+    <button id="pause" class="pause-btn hidden" aria-label="Pause">❚❚</button>
+  </div>
+
+  <!-- A short message from the game ("🦁 Leo kicks off", countdown...) -->
+  <div id="note" class="phone-note hidden"><span class="icon"></span><span class="text"></span></div>
+
+  <!-- Connecting / errors -->
+  <section id="status" class="overlay solid">
+    <p class="title">NEON ARCADE</p>
+    <p id="status-text" class="medium pulse">Connecting…</p>
+  </section>
+
+  <!-- Who are you? Nickname and avatar (remembered on this phone) -->
+  <section id="profile" class="overlay solid hidden">
+    <p class="medium neon" style="color: var(--me)">Who are you?</p>
+    <input id="name" class="name-input" type="text" maxlength="12" autocomplete="off"
+           autocapitalize="words" spellcheck="false" placeholder="Nickname" enterkeyhint="done">
+    <p id="name-hint" class="small hidden">🙊 Please pick another nickname</p>
+    <div id="avatars" class="avatar-grid"></div>
+    <button id="profile-done" class="go start-btn">Let's go! ▶</button>
+  </section>
+
+  <!-- Lobby: pick a game, how to play it, and start -->
+  <section id="lobby" class="overlay hidden">
+    <p id="you-are" class="medium neon" style="color: var(--me)">Hi!</p>
+    <p class="small">Tap your picture at the top to change it</p>
+    <div class="settings" id="lobby-settings"></div>
+    <button id="start" class="go start-btn">▶ START</button>
+    <p id="start-hint" class="small"></p>
+  </section>
+
+  <!-- Paused: carry on, change options, or go back to the games -->
+  <section id="paused" class="overlay dim hidden">
+    <p class="medium neon" style="color: var(--cpu)">PAUSED</p>
+    <button id="resume" class="go huge-btn" aria-label="Resume">▶</button>
+    <div class="settings" id="pause-settings"></div>
+    <button id="menu" class="menu-btn">🏠 Games</button>
+  </section>
+
+  <!-- Results -->
+  <section id="results" class="overlay dim hidden">
+    <p id="over-icon" class="big crowned">🏆</p>
+    <p id="over-text" class="medium neon"></p>
+    <div class="stack">
+      <button id="again" class="go">🔁 Play again</button>
+      <button id="change">🎮 Games</button>
+    </div>
+  </section>
+
+  <script type="module" src="/js/phone.js"></script>
+</body>
+</html>

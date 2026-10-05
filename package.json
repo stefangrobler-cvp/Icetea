@@ -1,14 +1,14 @@
 {
-  "name": "neon-pong",
+  "name": "family-game-platform",
   "version": "1.0.0",
-  "description": "Retro two-screen Pong: tablet shows the game, phones are the controllers",
-  "main": "server/index.js",
+  "description": "Family games on a shared screen, with phones as controllers",
+  "main": "platform/server/index.js",
   "directories": {
     "doc": "docs",
     "test": "test"
   },
   "scripts": {
-    "start": "node server/index.js",
+    "start": "node platform/server/index.js",
     "test": "node --test test/*.test.js"
   },
   "repository": {
