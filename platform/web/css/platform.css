@@ -673,3 +673,15 @@ body[data-game='soccer'] .zone {
 }
 .tilt-control.drag .tilt-puck { cursor: grab; }
 .tilt-ask { width: 100%; height: 64px; font-size: 22px; border-radius: 32px; }
+
+/* Kit: sideways swipe pad */
+.zone.horizontal { flex: 1.6; flex-direction: row; padding: 0 18px; }
+.zone.horizontal .label { top: 18px; left: 50%; transform: translateX(-50%); }
+.zone.horizontal .preview { flex-direction: row; }
+.zone.horizontal .preview i { width: 64px; height: 64px; border-radius: 50%; }
+
+/* Kit: tap button recharging */
+.tap-control { overflow: hidden; }
+.tap-fill { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: var(--me); opacity: 0.22; pointer-events: none; }
+.tap-control.charging { opacity: 0.6; }
+@keyframes tap-charge { from { height: 0; } to { height: 100%; } }

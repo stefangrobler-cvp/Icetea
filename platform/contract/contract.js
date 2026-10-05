@@ -13,7 +13,8 @@ export const CONTRACT_VERSION = 1;
 // New controls are added only when a game genuinely needs one (and after asking).
 export const CONTROLS = {
   // A big swipe area. Relative drag up and down. Value: number 0 (top) .. 1 (bottom).
-  swipe: { settings: ['id', 'label', 'look'], looks: ['bar', 'rod'] },
+  // With direction 'horizontal': drag left and right, 0 (left) .. 1 (right).
+  swipe: { settings: ['id', 'label', 'look', 'direction'], looks: ['bar', 'rod'], directions: ['vertical', 'horizontal'] },
   // An aiming circle: touch, slide round to aim, let go to fire.
   // Value while aiming: { angle }. When let go: { angle, release: true }.
   aim: { settings: ['id', 'label'] },
@@ -99,6 +100,7 @@ export function validateManifest(m) {
         if (key !== 'control' && !kind.settings.includes(key)) err(`${where}: ${c.control} has no setting "${key}"`);
       }
       if (c.look && !kind.looks?.includes(c.look)) err(`${where}: ${c.control} has no look "${c.look}"`);
+      if (c.direction && !kind.directions?.includes(c.direction)) err(`${where}: ${c.control} has no direction "${c.direction}"`);
     }
   }
 

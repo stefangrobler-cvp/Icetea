@@ -3,7 +3,7 @@
 A family game platform: a tablet or TV is the shared screen and each person's
 phone is their controller. Nothing to install, no sign-in. Phase one (Foundation):
 rooms, QR joining, the controller kit, the game plug-in contract, guest play and
-basic measurement, with Pong, Soccer and Block Stacker as the first games.
+basic measurement, with Pong, Soccer, Block Stacker and Hazard Storm as the first games.
 
 ## Playing
 

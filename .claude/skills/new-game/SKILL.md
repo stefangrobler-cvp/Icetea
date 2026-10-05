@@ -13,7 +13,7 @@ Read `CLAUDE.md` and `platform/contract/README.md` first.
 Write a short brief, in plain language, and decide:
 - **id / name / icon**: id lower-case with dashes (`air-hockey`), name ≤ 30 chars, one emoji.
 - **Players and modes**: 1–4 phones; head-to-head and/or team v computer (`sides`, `computer`).
-- **Controls**: map every action to the controller kit — `swipe` (0..1 slider; look `bar` or `rod`),
+- **Controls**: map every action to the controller kit — `swipe` (0..1 slider; look `bar` or `rod`; `direction: horizontal` for left/right),
   `aim` (dial; `{angle}` then `{angle, release:true}`), `tap` (giant button; `{down:true}` /
   `{down:false}`, params `ready`, `icon`, `text`) and `tilt` (-1..1; drag rail fallback). Use several layouts and switch
   them mid-match with `host.setLayout` if needed.

@@ -4,12 +4,16 @@
 // with a big emoji in the middle. It lights up while pressed. Games use the press
 // (drop a block, flip gravity) or the hold (keep moving while held down).
 //
-// Layout params: { ready, icon, text }  (ready: false dims it, e.g. "not your turn")
+// Layout params: { ready, icon, text, recharge }
+//   ready: false dims it (e.g. "not your turn")
+//   recharge: seconds; with ready: false, the button fills up over that time
+//             (e.g. a dash that needs to recharge)
 // Sends { down: true } when pressed and { down: false } when let go, reliably.
 
 export function tap(el, spec, ctx, params = {}) {
   el.className = 'tap-control';
-  el.innerHTML = '<div class="tap-icon"></div><div class="tap-text"></div>';
+  el.innerHTML = '<div class="tap-fill"></div><div class="tap-icon"></div><div class="tap-text"></div>';
+  const fill = el.querySelector('.tap-fill');
   const icon = el.querySelector('.tap-icon');
   const text = el.querySelector('.tap-text');
 
@@ -21,6 +25,14 @@ export function tap(el, spec, ctx, params = {}) {
     el.classList.toggle('waiting', waiting);
     icon.textContent = p.icon || spec.label || '👆';
     text.textContent = p.text || '';
+    // Recharging: the fill rises from the bottom over `recharge` seconds.
+    const charging = waiting && p.recharge > 0;
+    el.classList.toggle('charging', charging);
+    fill.style.animation = 'none';
+    if (charging) {
+      void fill.offsetWidth; // restart the animation
+      fill.style.animation = `tap-charge ${p.recharge}s linear forwards`;
+    }
   }
 
   function press() {

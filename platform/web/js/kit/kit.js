@@ -19,8 +19,9 @@ const CONTROLS = { swipe, aim, tap, tilt };
  */
 export function mountLayout(container, controls, params, ctx) {
   container.replaceChildren();
-  // Tilt is a slim rail: stack it above the other control instead of side by side.
-  container.className = controls.some((c) => c.control === 'tilt') ? 'zones stacked' : 'zones';
+  // Tilt rails and sideways swipe pads are wide: stack the controls instead of side by side.
+  const wide = (c) => c.control === 'tilt' || (c.control === 'swipe' && c.direction === 'horizontal');
+  container.className = controls.length > 1 && controls.some(wide) ? 'zones stacked' : 'zones';
   const parts = controls.map((spec) => {
     const make = CONTROLS[spec.control];
     const el = document.createElement('div');
