@@ -292,12 +292,14 @@ export class Renderer {
         base.position.y = 0.15;
         g.add(base);
         g.rotation.x = -0.55;
-        g.scale.setScalar(0.82);
+        const pair = sides[side].length > 1; // two players on a side: a little smaller and closer, clear of the score
+        const size = pair ? 0.68 : 0.82;
+        g.scale.setScalar(size);
         const s = side === 'left' ? -1 : 1;
-        const home = new THREE.Vector3(s * (8.4 - i * 3.3), 0, -CZ - 1.8);
+        const home = new THREE.Vector3(s * (pair ? 9 - i * 2.6 : 8.4), 0, -CZ - 1.8);
         g.position.copy(home);
         this.scene.add(g);
-        this.cast.push({ group: g, home, jump: 0, sad: 0, nod: 0, ph: rnd() * 6, seat: who.seat, side });
+        this.cast.push({ group: g, home, size, jump: 0, sad: 0, nod: 0, ph: rnd() * 6, seat: who.seat, side });
       });
     }
   }
@@ -308,7 +310,8 @@ export class Renderer {
     for (const p of state.paddles) {
       seen.add(p.id);
       const len = p.h / S;
-      const key = `${p.color}:${len.toFixed(2)}`;
+      const art = p.slot ? this.players[p.slot]?.art : ROBOT; // whose paddle it is, by picture as well as colour
+      const key = `${p.color}:${len.toFixed(2)}:${p.slot ?? 'cpu'}:${Boolean(art)}`;
       let v = this.paddles.get(p.id);
       if (!v || v.key !== key) {
         if (v) this.scene.remove(v.group);
@@ -324,6 +327,11 @@ export class Renderer {
           b.castShadow = true;
           group.add(b);
           blocks.push({ mesh: b, z: b.position.z });
+        }
+        if (art) {
+          const face = this.faceSprite(art, 1.05);
+          face.position.y = 0.95;
+          group.add(face);
         }
         this.scene.add(group);
         v = { group, blocks, key, wave: -1, hitZ: 0, facing: p.facing || (p.side === 'left' ? 1 : -1) };
@@ -465,6 +473,32 @@ export class Renderer {
       const e = project(hi);
       this.fitTarget.z -= ((e.yMax + e.yMin) / 2 - (top + bottom) / 2) * ((CZ * 2 + 2) / Math.max(0.2, e.yMax - e.yMin));
     }
+  }
+
+  // A player's pixel animal as a little picture that always faces the camera.
+  faceSprite(art, size) {
+    this.faces ||= new Map();
+    const key = art.rows.join('|');
+    let material = this.faces.get(key);
+    if (!material) {
+      const c = document.createElement('canvas');
+      c.width = art.rows[0].length * 8;
+      c.height = art.rows.length * 8;
+      const x = c.getContext('2d');
+      art.rows.forEach((row, y) => [...row].forEach((ch, xx) => {
+        if (ch === '.' || !art.palette[ch]) return;
+        x.fillStyle = art.palette[ch];
+        x.fillRect(xx * 8, y * 8, 8, 8);
+      }));
+      const tex = new THREE.CanvasTexture(c);
+      tex.magFilter = THREE.NearestFilter;
+      tex.minFilter = THREE.NearestFilter;
+      material = new THREE.SpriteMaterial({ map: tex, alphaTest: 0.5 });
+      this.faces.set(key, material);
+    }
+    const sprite = new THREE.Sprite(material);
+    sprite.scale.set(size, size * (art.rows.length / art.rows[0].length), 1);
+    return sprite;
   }
 
   coinFace(who) {
@@ -613,7 +647,7 @@ export class Renderer {
       c.nod = Math.max(0, c.nod - this.dt * 4);
       const hop = c.jump > 0 ? Math.abs(Math.sin((1 - c.jump) * Math.PI * 3)) * 1.6 * c.jump : Math.sin(c.nod * Math.PI) * 0.35;
       c.group.position.set(c.home.x, hop, c.home.z);
-      c.group.scale.set(0.82 * (1 + c.sad * 0.08), 0.82 * (1 + Math.sin(this.time * 2.4 + c.ph) * 0.025 - c.sad * 0.16), 0.82);
+      c.group.scale.set(c.size * (1 + c.sad * 0.08), c.size * (1 + Math.sin(this.time * 2.4 + c.ph) * 0.025 - c.sad * 0.16), c.size);
       c.group.rotation.z = c.jump > 0 ? Math.sin(this.time * 18) * 0.12 * c.jump : Math.sin(this.time * 1.3 + c.ph) * 0.03;
     }
 
