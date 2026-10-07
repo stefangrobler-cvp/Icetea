@@ -91,7 +91,8 @@ function startScreen() {
 
   let catalogue = []; // game manifests from /api/catalogue
   const players = {}; // seat -> { connected, profile }
-  for (const seat of SEATS) players[seat] = { connected: false, profile: cleanProfile(null, seat) };
+  // ready: this phone has picked its animal. Until then it's "incoming" and not counted as a player.
+  for (const seat of SEATS) players[seat] = { connected: false, ready: false, profile: cleanProfile(null, seat) };
   const lag = {}; // seat -> { rtt, direct }
   const lastSeq = {}; // "seat:control" -> newest input counter seen
   let room = null;
@@ -125,6 +126,7 @@ function startScreen() {
   const byId = (id) => catalogue.find((g) => g.id === id);
   const label = (seat) => playerLabel(Object.fromEntries(SEATS.map((s) => [s, players[s].profile])), seat);
   const connectedSeats = () => SEATS.filter((s) => players[s].connected);
+  const readySeats = () => SEATS.filter((s) => players[s].connected && players[s].ready);
   const selectedGame = () => byId(selection.game);
   const selectedMode = () => selectedGame()?.modes.find((m) => m.id === selection.mode);
   const missingSeats = () => (match ? match.seats.filter((s) => !players[s].connected) : []);
@@ -182,6 +184,7 @@ function startScreen() {
     if (!p) return;
     const was = p.connected;
     p.connected = Boolean(connected);
+    if (was !== p.connected) p.ready = false; // a phone (re)joining sends its animal again when it's picked
     if (p.connected && !was) for (const key of Object.keys(lastSeq)) if (key.startsWith(`${seat}:`)) lastSeq[key] = 0;
     if (!p.connected) { links.close(seat); lag[seat] = null; }
     if (was !== p.connected) fitMode();
@@ -250,7 +253,7 @@ function startScreen() {
   function fitMode() {
     const game = selectedGame();
     if (!game || modePicked || (phase !== 'lobby' && phase !== 'results')) return;
-    const count = connectedSeats().length;
+    const count = readySeats().length;
     const fits = game.modes.find((m) => count >= m.players.min && count <= m.players.max)
       || game.modes.find((m) => count >= m.players.min);
     selection.mode = (fits || game.modes[0]).id;
@@ -258,7 +261,7 @@ function startScreen() {
 
   function canStart() {
     const mode = selectedMode();
-    return Boolean(mode) && connectedSeats().length >= mode.players.min;
+    return Boolean(mode) && readySeats().length >= mode.players.min;
   }
 
   // ---------- running a game through the contract ----------
@@ -300,7 +303,7 @@ function startScreen() {
     const manifest = selectedGame();
     const mode = selectedMode();
     if (!manifest || !mode || !canStart() || phase === 'loading') return;
-    const seats = connectedSeats().slice(0, mode.players.max);
+    const seats = readySeats().slice(0, mode.players.max);
     phase = 'loading';
     stopGame();
     let mod;
@@ -435,6 +438,8 @@ function startScreen() {
       case ACTIONS.PROFILE:
         if (players[data.slot]) {
           players[data.slot].profile = cleanProfile(data, data.slot);
+          players[data.slot].ready = true;
+          fitMode();
           maybeJoinMatch(data.slot);
         }
         break;
@@ -575,7 +580,7 @@ function startScreen() {
       phase: phase === 'loading' ? 'lobby' : phase,
       matchId: match?.id || 0,
       players: Object.fromEntries(SEATS.map((s) => [s, {
-        connected: players[s].connected, name: players[s].profile.name, avatar: players[s].profile.avatar, color: theme.seats[s],
+        connected: players[s].connected, ready: players[s].ready, name: players[s].profile.name, avatar: players[s].profile.avatar, color: theme.seats[s],
         boost: players[s].profile.boost || 0,
       }])),
       selection,
@@ -632,7 +637,7 @@ function startScreen() {
   function updateScreen() {
     const missing = missingSeats();
     const view = JSON.stringify([started, showHowto, phase, selection, catalogue.length, lag, paused, missing, results,
-      SEATS.map((s) => [players[s].connected, players[s].profile])]);
+      SEATS.map((s) => [players[s].connected, players[s].ready, players[s].profile])]);
     if (view === lastView) return;
     lastView = view;
 
@@ -653,6 +658,9 @@ function startScreen() {
       const p = players[s];
       if (!p.connected) {
         return `<div class="player-chip" style="--c:${theme.seats[s]}"><span class="slot-empty">${s}</span><span class="chip-text"><small>Scan to join</small></span></div>`;
+      }
+      if (!p.ready) {
+        return `<div class="player-chip incoming" style="--c:${theme.seats[s]}"><span class="slot-empty slot-q">?</span><span class="chip-text"><span class="chip-name">Player incoming</span><small>Choosing…</small></span></div>`;
       }
       const boost = p.profile.boost ? `<span class="boost">${pix('🐣').repeat(p.profile.boost)}</span>` : '';
       return `<div class="player-chip on" style="--c:${theme.seats[s]}">${pix(p.profile.avatar, 'pix slot-avatar')}<span class="chip-text"><span class="chip-name">${

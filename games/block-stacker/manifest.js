@@ -28,14 +28,11 @@ export const manifest = {
     },
   ],
   layouts: {
-    play: [
-      { control: 'tilt', id: 'nudge', label: '🧊' },
-      { control: 'tap', id: 'drop', label: '🧊' },
-    ],
+    play: [{ control: 'tap', id: 'drop', label: '🧊' }],
   },
   howTo: [
     { icon: '👆', text: 'Tap to drop your block' },
-    { icon: '📲', text: 'Tilt your phone to nudge it' },
+    { icon: '👀', text: 'Wait till it swings over the tower' },
     { icon: '🏁', text: 'Stack up to the flag. Don\'t let blocks fall!' },
   ],
 };

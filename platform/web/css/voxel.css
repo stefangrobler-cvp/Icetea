@@ -238,3 +238,63 @@ button.go:not([disabled]).breathe { animation: breathe 1.8s ease-in-out infinite
 .avatar-grid button.selected img { animation: picked 0.35s cubic-bezier(.3, 1.8, .5, 1); }
 @keyframes picked { from { transform: scale(0.7); } }
 @media (prefers-reduced-motion: reduce) { .avatar-grid button.selected img { animation: none; } }
+
+/* A phone that has joined but is still picking its animal */
+.player-chip.incoming { background: var(--violet); color: var(--text); box-shadow: inset 0 0 0 3px var(--c); }
+.player-chip.incoming .slot-q { border-color: var(--c); color: var(--c); font-size: 18px; animation: q-pulse 1.2s ease-in-out infinite; }
+.player-chip.incoming small { color: var(--muted); }
+@keyframes q-pulse { 50% { transform: scale(1.12); opacity: 0.6; } }
+
+/* Phone: no animal picked yet */
+.me-badge .q { font: 24px var(--pixel); color: #160934; }
+.avatar-grid.nudge { animation: nudge 0.4s ease-in-out; }
+@keyframes nudge { 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
+
+/* Phone: ways out of a stuck connection screen */
+.status-actions { display: flex; flex-direction: column; gap: 12px; width: min(86vw, 360px); }
+.status-actions button { font-size: 18px; padding: 16px; }
+@media (prefers-reduced-motion: reduce) { .player-chip.incoming .slot-q { animation: none; } }
+
+/* Kit tap button: icons as pixel art */
+.tap-control .tap-icon img.tap-pix { height: min(34vw, 150px); width: auto; }
+.tap-block-stage, .tap-pop { display: none; }
+
+/* Kit tap button, block look (Block Stacker): your own block hangs on a wire and drops when tapped */
+.tap-control.block-look { justify-content: flex-start; padding-top: 18%; }
+.tap-control.block-look .tap-block-stage { display: block; position: absolute; top: 8%; left: 0; right: 0; height: 46%; pointer-events: none; }
+.tap-control.block-look:not(.my-turn) .tap-block-stage { display: none; }
+.tap-wire { position: absolute; top: 0; left: 12%; right: 12%; height: 5px; background: #ff2bd6; box-shadow: 0 0 14px #ff2bd6; border-radius: 3px; }
+.tap-block {
+  position: absolute; top: 34%; left: 50%; width: 58%; height: 36%; margin-left: -29%;
+  background: var(--me); border-radius: 8px; transform-origin: 50% -90%;
+  box-shadow: inset 0 0 0 6px rgba(0, 0, 0, 0.22), inset 0 6px 0 rgba(255, 255, 255, 0.35), 0 0 40px -6px var(--me);
+  display: grid; place-items: center; animation: tap-sway 1.6s ease-in-out infinite;
+}
+.tap-cable { position: absolute; left: 50%; bottom: 100%; width: 3px; height: 90%; margin-left: -1.5px; background: #ff2bd6; }
+.tap-face img { height: 78%; max-height: 90px; width: auto; }
+.tap-block.dropped { animation: tap-drop 0.45s cubic-bezier(.5, 0, .8, .4) forwards; }
+.tap-block.dropped .tap-cable { display: none; }
+@keyframes tap-sway { 0%, 100% { transform: rotate(-7deg); } 50% { transform: rotate(7deg); } }
+@keyframes tap-drop { to { transform: translateY(240%) scale(0.85, 1.1); opacity: 0; } }
+.tap-control.block-look.my-turn .tap-text { position: absolute; bottom: 12%; font: 30px var(--pixel); color: var(--me); animation: tap-call 0.9s ease-in-out infinite; }
+@keyframes tap-call { 50% { transform: scale(1.12); } }
+.tap-control.block-look.my-turn .tap-icon { display: none; }
+.tap-control.block-look.waiting { opacity: 1; border-style: solid; }
+.tap-control.block-look.waiting .tap-icon { margin-top: 18%; animation: tap-wait-bob 1.4s ease-in-out infinite; }
+.tap-control.block-look.waiting .tap-icon img.tap-pix { height: min(28vw, 120px); opacity: 0.85; }
+.tap-control.block-look.waiting .tap-text::after { content: '• • •'; font: 22px var(--pixel); color: var(--muted); animation: tap-dots 1.2s steps(3) infinite; }
+@keyframes tap-wait-bob { 50% { transform: translateY(-8px); } }
+@keyframes tap-dots { 0% { opacity: 0.3; } 50% { opacity: 1; } }
+.tap-control.block-look.pressed { background: radial-gradient(circle at center, color-mix(in srgb, var(--me) 45%, transparent), rgba(255, 255, 255, 0.04) 75%); }
+/* +1 when your block lands, a gentle wobble when it falls off */
+.tap-control.block-look .tap-pop { display: block; position: absolute; left: 50%; top: 52%; translate: -50% -50%; font: 64px var(--pixel); opacity: 0; pointer-events: none; }
+.tap-pop.cheer { color: #39ff7a; text-shadow: 0 0 20px #39ff7a; }
+.tap-pop.oops { color: #ffb3d9; font-size: 34px; }
+.tap-pop.cheer.go { animation: tap-plus 0.9s cubic-bezier(.3, 1.6, .5, 1) forwards; }
+.tap-pop.oops.go { animation: tap-oops 0.9s ease-in-out forwards; }
+@keyframes tap-plus { 0% { opacity: 0; transform: scale(0.4); } 25% { opacity: 1; transform: scale(1.2); } 100% { opacity: 0; transform: translateY(-80px) scale(1); } }
+@keyframes tap-oops { 0% { opacity: 0; } 20%, 70% { opacity: 1; transform: rotate(-6deg); } 45% { transform: rotate(6deg); } 100% { opacity: 0; } }
+.tap-confetti { position: absolute; left: 50%; top: 55%; width: 16px; height: 16px; border-radius: 3px; background: var(--me); box-shadow: 0 0 10px var(--me); pointer-events: none; animation: tap-confetti 0.9s ease-out forwards; }
+.tap-confetti:nth-child(odd) { background: #ffe600; box-shadow: 0 0 10px #ffe600; }
+@keyframes tap-confetti { to { transform: translate(var(--dx), var(--dy)) rotate(var(--r)); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .tap-block, .tap-control.block-look .tap-text, .tap-control.block-look.waiting .tap-icon { animation: none; } }

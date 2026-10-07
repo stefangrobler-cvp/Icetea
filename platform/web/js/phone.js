@@ -96,6 +96,7 @@ setInterval(() => {
 let counter = 0;
 const kitContext = {
   values: {}, // control id -> last value (kept when the layout changes)
+  me: () => ({ avatar: profile?.avatar || (seat && defaultAvatar(seat)), color: state?.players?.[seat]?.color }), // for controls that show your own animal
   send(id, value, reliable = false) {
     counter += 1;
     // Reliable inputs are one-off events (a tap, a release): marked `e` so a newer
@@ -213,14 +214,14 @@ function openProfile() {
   editingProfile = true;
   $('name').value = profile?.name || '';
   $('name-hint').classList.add('hidden');
-  pickedAvatar = profile?.avatar || defaultAvatar(seat || 1);
+  pickedAvatar = profile?.avatar || null; // a new player picks their own; a returning one keeps theirs
   const grid = $('avatars');
   if (!grid.children.length) {
     for (const a of AVATARS) {
       const b = document.createElement('button');
       b.innerHTML = pix(a);
       b.dataset.avatar = a;
-      b.addEventListener('click', () => { pickedAvatar = a; markAvatar(); });
+      b.addEventListener('click', () => { pickedAvatar = a; markAvatar(); render(); });
       grid.appendChild(b);
     }
   }
@@ -232,6 +233,13 @@ function markAvatar() {
 }
 
 $('profile-done').addEventListener('click', () => {
+  if (!pickedAvatar) {
+    // No animal yet: give the grid a little shake instead of picking one for them.
+    $('avatars').classList.remove('nudge');
+    void $('avatars').offsetWidth;
+    $('avatars').classList.add('nudge');
+    return;
+  }
   const typed = $('name').value.trim();
   if (!nicknameAllowed(typed)) {
     $('name-hint').classList.remove('hidden');
@@ -262,13 +270,18 @@ const nameOf = (s) => (state?.players?.[s] ? `${state.players[s].avatar} ${state
 const SCREENS = ['status', 'profile', 'lobby', 'paused', 'results', 'controller', 'score', 'pause', 'note'];
 
 let lastLobby = '';
+let statusSince = 0; // when the connection screen appeared
+let statusTimer = null;
+$('status-retry').addEventListener('click', () => location.reload());
+$('status-other').addEventListener('click', () => { location.href = '/'; }); // type another screen's code
 function render() {
   const me = state?.players?.[seat];
   document.body.style.setProperty('--me', me?.color || '#ffffff');
-  const badge = seat ? (profile?.avatar || defaultAvatar(seat)) : null;
+  // Until an animal is picked the badge shows "?", never a made-up one.
+  const badge = !seat ? null : editingProfile ? pickedAvatar : profileConfirmed ? (profile?.avatar || defaultAvatar(seat)) : null;
   if ($('badge').dataset.shown !== String(badge)) {
     $('badge').dataset.shown = String(badge);
-    $('badge').innerHTML = badge ? pix(badge) : '…';
+    $('badge').innerHTML = badge ? pix(badge) : '<span class="q">?</span>';
   }
 
   // Problems first
@@ -281,9 +294,15 @@ function render() {
   if (status) {
     SCREENS.forEach((id) => show(id, id === 'status'));
     $('status-text').textContent = status;
+    // Stuck for a while (or the code is wrong): offer a way out instead of a dead end.
+    statusSince ||= performance.now();
+    const stuck = problem || performance.now() - statusSince > 6000;
+    $('status-actions').classList.toggle('hidden', !stuck);
+    if (!stuck && !statusTimer) statusTimer = setTimeout(() => { statusTimer = null; render(); }, 6100);
     hideLayout();
     return;
   }
+  statusSince = 0;
 
   // First time in this room: who are you? (also when tapping your avatar in the lobby)
   if (!profileConfirmed && !editingProfile) openProfile();

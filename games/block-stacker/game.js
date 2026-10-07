@@ -50,6 +50,9 @@ export function createGame(host) {
   const shown = {}; // seat -> last layout params sent, so phones only get changes
 
   const avatar = (seat) => players.find((p) => p.seat === seat)?.avatar || '🙂';
+  // Each phone's own running counts, so it can cheer when its block lands (or wobble when one falls).
+  const tally = {}; // seat -> { landed, lost }
+  const mine = (seat) => tally[seat] || (tally[seat] = { landed: 0, lost: 0 });
 
   // What each phone's tap button shows right now.
   function phoneParams(seat) {
@@ -59,9 +62,11 @@ export function createGame(host) {
     const tower = mode === 'team' ? s.towers[0] : s.towers.find((t) => t.seats[0] === seat);
     if (!tower) return { ready: false, icon: '⏳' };
     if (tower.out) return { ready: false, icon: '💔' };
-    if (tower.hanging?.seat === seat) return { ready: true, icon: '🧊', text: 'Tap!' };
-    if (mode === 'team') return { ready: false, icon: avatar(engine.currentSeat(tower)), text: '⏳' };
-    return { ready: false, icon: '⏳' };
+    // The phone shows its own block hanging on a wire; tap and it drops.
+    const block = { look: 'block', ...mine(seat) };
+    if (tower.hanging?.seat === seat) return { ...block, ready: true };
+    if (mode === 'team') return { ...block, ready: false, icon: avatar(engine.currentSeat(tower)) };
+    return { ...block, ready: false, icon: avatar(seat) };
   }
 
   function updatePhones(force = false) {
@@ -91,11 +96,14 @@ export function createGame(host) {
         host.vibrate(ev.seat, 40);
       } else if (ev.type === 'land') {
         sounds.land(ev.power);
+        mine(ev.seat).landed += 1;
+        host.vibrate(ev.seat, 25);
         const scores = engine.scores();
         best = Math.max(best, ...Object.values(scores));
         report('point-scored', { side: mode === 'team' ? 'team' : engine.state.towers[ev.tower].side, scores });
       } else if (ev.type === 'lost') {
         sounds.lost();
+        mine(ev.seat).lost += 1;
         host.vibrate(ev.seat, 150);
         if (mode === 'team') report('point-scored', { side: 'cpu', scores: engine.scores() });
       } else if (ev.type === 'out') {
@@ -121,6 +129,7 @@ export function createGame(host) {
       endIn = 0;
       best = 0;
       for (const k of Object.keys(shown)) delete shown[k];
+      for (const k of Object.keys(tally)) delete tally[k];
       renderer.players = Object.fromEntries(players.map((p) => [p.seat, { avatar: p.avatar, color: p.color, art: p.art }]));
       engine.setDifficulty(options.difficulty);
       engine.startMatch(mode, players.map((p) => ({ seat: p.seat, side: p.side, color: p.color, boost: p.boost || 0 })));
