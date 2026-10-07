@@ -2,6 +2,11 @@
 
 Short entries, newest first. Why we chose something, and when to look at it again.
 
+## 2026-10-07: Block Stacker is the third game in the new look
+- **Why:** the owner's children enjoyed it most. Seen from the front in 3D; every block wears the face
+  of the child who dropped it. Rules and physics unchanged.
+- **Reminder:** this is the last game before the outside-family test agreed below.
+
 ## 2026-10-07: Carry on redesigning before outside families have played (override)
 - **Decision:** the owner played the redesign with his own children ("seems good") and will keep testing;
   meanwhile work moves on to the next game.

@@ -17,7 +17,9 @@ A plug-in game for the platform (see `platform/contract/README.md`).
 | `manifest.js` | Name, players, modes, difficulty, phone layout |
 | `game.js` | The contract: `createGame(host)` |
 | `engine.js`, `config.js` | Rules and physics (no drawing) |
-| `renderer.js`, `sounds.js` | Drawing and sounds |
+| `renderer3d.js` | Drawing in 3D (Neon Voxel): blocks wearing their builder's animal, floating islands, laser wire, block flag |
+| `renderer2d.js`, `sounds.js` | Flat drawing (used on screens without WebGL) and sounds |
+| `vendor/three.js` | [three.js](https://threejs.org/) r128 + glow add-ons (MIT, `vendor/LICENSE-three`), network loaders switched off |
 | `vendor/matter.js` | [Matter.js](https://brm.io/matter-js/) 0.20.0 physics (MIT, `vendor/LICENSE-matter-js`), wrapped as a module |
 
 Tests: `test/block-stacker.test.js`.

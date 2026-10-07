@@ -6,7 +6,8 @@
 
 import { manifest } from './manifest.js';
 import { Engine, PHASE } from './engine.js';
-import { Renderer } from './renderer.js';
+import { Renderer as Renderer3D, canDraw3D } from './renderer3d.js';
+import { Renderer as Renderer2D } from './renderer2d.js';
 import { makeSounds } from './sounds.js';
 import { COLORS } from './config.js';
 
@@ -15,15 +16,28 @@ export { manifest };
 const CELEBRATE = 2.2; // seconds to enjoy the final tower before the results
 
 export function createGame(host) {
-  const canvas = document.createElement('canvas');
-  canvas.style.cssText = 'position:absolute;inset:0;display:block;touch-action:none';
-  host.stage.appendChild(canvas);
+  const makeCanvas = () => {
+    const c = document.createElement('canvas');
+    c.style.cssText = 'position:absolute;inset:0;display:block;touch-action:none';
+    host.stage.appendChild(c);
+    return c;
+  };
+  let canvas = makeCanvas();
 
   // Colours come from the platform's theme (neon for now).
   for (const key of ['background', 'line', 'cpu', 'text']) if (host.theme?.[key]) COLORS[key] = host.theme[key];
 
   const engine = new Engine({ rng: host.random });
-  const renderer = new Renderer(canvas);
+  // Neon voxel blocks in 3D; the flat drawing on a screen that can't do 3D.
+  let renderer = null;
+  if (canDraw3D()) {
+    try { renderer = new Renderer3D(canvas); } catch (e) { console.warn('Block Stacker: 3D unavailable, drawing flat', e); }
+  }
+  if (!renderer) {
+    canvas.remove();
+    canvas = makeCanvas();
+    renderer = new Renderer2D(canvas);
+  }
   const sounds = makeSounds(host.audio);
 
   let players = [];
@@ -107,7 +121,7 @@ export function createGame(host) {
       endIn = 0;
       best = 0;
       for (const k of Object.keys(shown)) delete shown[k];
-      renderer.players = Object.fromEntries(players.map((p) => [p.seat, { avatar: p.avatar, color: p.color }]));
+      renderer.players = Object.fromEntries(players.map((p) => [p.seat, { avatar: p.avatar, color: p.color, art: p.art }]));
       engine.setDifficulty(options.difficulty);
       engine.startMatch(mode, players.map((p) => ({ seat: p.seat, side: p.side, color: p.color, boost: p.boost || 0 })));
       totalTime = engine.state.time;
@@ -151,7 +165,7 @@ export function createGame(host) {
       if (mode !== 'team' || players.some((p) => p.seat === player.seat)) return false;
       if (!engine.addPlayer(player.seat, { side: 'team', color: player.color, boost: player.boost || 0 })) return false;
       players.push({ ...player, side: 'team' });
-      renderer.players[player.seat] = { avatar: player.avatar, color: player.color };
+      renderer.players[player.seat] = { avatar: player.avatar, color: player.color, art: player.art };
       updatePhones(true);
       return true;
     },

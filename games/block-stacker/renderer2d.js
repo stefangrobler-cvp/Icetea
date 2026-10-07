@@ -1,4 +1,4 @@
-// Draws Block Stacker on a <canvas>. Only reads the engine's view, never changes it.
+// Draws Block Stacker flat on a 2D <canvas>: the fallback for screens that cannot do 3D (no WebGL).
 // Neon arcade look: indigo perspective grid, see-through glowing blocks with bright
 // corners, a laser wire, sparks when blocks land.
 
