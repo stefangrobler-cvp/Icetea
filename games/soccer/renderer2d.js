@@ -1,4 +1,4 @@
-// Draws Soccer on a <canvas>. Only reads engine state, never changes it.
+// Draws Soccer flat on a 2D <canvas>: the fallback for screens that cannot do 3D (no WebGL).
 // Effects (bounces, ripples, wobbling paddles) are driven by the engine's events.
 
 import { COURT, BALL, COLORS, SOCCER, TOSS_SECONDS, KICKOFF } from './config.js';

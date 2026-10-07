@@ -6,27 +6,46 @@
 
 import { manifest } from './manifest.js';
 import { Engine, PHASE } from './engine.js';
-import { Renderer } from './renderer.js';
+import { Renderer as Renderer3D, canDraw3D } from './renderer3d.js';
+import { Renderer as Renderer2D } from './renderer2d.js';
+import { rules } from './rules.js';
 import { Replay } from './replay.js';
 import { makeSounds } from './sounds.js';
-import { COLORS, LANE, MAX_TRAVEL_ANGLE } from './config.js';
+import { COLORS, LANE, MAX_TRAVEL_ANGLE, BALL, COURT } from './config.js';
 
 export { manifest };
+
+const KICK_FREEZE = 0.04; // seconds the game holds still on each kick, so it lands with a thump
+const SLOW_MOTION = 0.35; // game speed while a ball nobody can stop rolls into a goal
 
 // Phone layout (from the manifest) for the rods a player works, left to right.
 const LAYOUT_FOR = { 'def,att': 'both-left', 'att,def': 'both-right', def: 'defence', att: 'attack' };
 const LANE_FOR = { def: LANE.DEFENCE, att: LANE.ATTACK };
 
 export function createGame(host) {
-  const canvas = document.createElement('canvas');
-  canvas.style.cssText = 'position:absolute;inset:0;display:block;touch-action:none';
-  host.stage.appendChild(canvas);
+  const makeCanvas = () => {
+    const c = document.createElement('canvas');
+    c.style.cssText = 'position:absolute;inset:0;display:block;touch-action:none';
+    host.stage.appendChild(c);
+    return c;
+  };
+  let canvas = makeCanvas();
 
   // Colours come from the platform's theme (neon for now). The pitch keeps its own green.
   for (const key of ['line', 'ball', 'cpu']) if (host.theme?.[key]) COLORS[key] = host.theme[key];
 
   const engine = new Engine({ rng: host.random });
-  const renderer = new Renderer(canvas);
+  // The neon voxel pitch in 3D; the flat pitch on a screen that can't do 3D.
+  let renderer = null;
+  if (canDraw3D()) {
+    try { renderer = new Renderer3D(canvas); } catch (e) { console.warn('Soccer: 3D unavailable, drawing flat', e); }
+  }
+  if (!renderer) {
+    canvas.remove();
+    canvas = makeCanvas();
+    renderer = new Renderer2D(canvas);
+  }
+  const in3D = renderer instanceof Renderer3D;
   const sounds = makeSounds(host.audio);
   const replay = new Replay();
 
@@ -37,6 +56,7 @@ export function createGame(host) {
   let shown = null;
   let pending = []; // events from a kick, played on the next update
   let lastMessage = '';
+  let freeze = 0; // seconds left of a kick's freeze
   const layouts = {}; // seat -> last layout sent (so we only send changes)
 
   const name = (seat) => {
@@ -47,6 +67,8 @@ export function createGame(host) {
     if (mode === 'team') return side === 'left' ? 'Team' : '🤖 Computer';
     return name(players.find((p) => p.side === side)?.seat);
   };
+  // Without the emoji, for the big screen in 3D (it shows the pixel animals).
+  const plain = (text) => (in3D ? text.replace(/\p{Extended_Pictographic}\uFE0F?/gu, '').replace(/\s+/g, ' ').trim() : text);
   const sideColor = (side) => engine.state.paddles.find((p) => p.side === side)?.color || COLORS.line;
   const seatColor = (seat) => players.find((p) => p.seat === seat)?.color || COLORS.cpu;
 
@@ -55,6 +77,7 @@ export function createGame(host) {
   function finishReplay() {
     replay.stop();
     renderer.replaying = false;
+    renderer.banner = null; // don't leave GOAL! behind the results
     endMatch();
   }
 
@@ -104,12 +127,12 @@ export function createGame(host) {
     } else if (s.phase === PHASE.TOSS) {
       const landed = s.toss.timeLeft < 0.6;
       const text = landed ? `${sideName(s.toss.winner)} kicks off!` : '🪙 Coin toss…';
-      caption = { text, color: landed ? sideColor(s.toss.winner) : '#ffffff' };
+      caption = { text: plain(landed ? text : (in3D ? 'Coin toss' : text)), color: landed ? sideColor(s.toss.winner) : (in3D ? '#ffe600' : '#ffffff') };
       phone = { icon: '🪙', text: landed ? text : 'Coin toss…' };
     } else if (s.phase === PHASE.KICKOFF && !renderer.banner) {
       const who = k.slot === null ? '🤖 Computer' : name(k.slot);
       caption = {
-        text: k.slot !== null && k.wait <= 0 ? `${who}: aim on your phone and let go! ⚽` : `${who} kicks off`,
+        text: plain(k.slot !== null && k.wait <= 0 ? `${who}: aim on your phone and let go! ⚽` : `${who} kicks off`),
         color: seatColor(k.slot),
       };
       phone = { icon: '⚽', text: `${who} kicks off` };
@@ -135,6 +158,7 @@ export function createGame(host) {
     for (const ev of events) {
       if (ev.type === 'hit') {
         sounds.kick(ev.power);
+        freeze = KICK_FREEZE;
         const rod = engine.state.paddles.find((p) => p.id === ev.paddle);
         if (rod?.slot) host.vibrate(rod.slot, 15 + Math.round(ev.power * 25));
       } else if (ev.type === 'wall') sounds.thud();
@@ -154,16 +178,34 @@ export function createGame(host) {
     }
   }
 
+  // Is the ball past the last defender and rolling straight at the goal mouth?
+  // (Defenders let a ball behind them through, so nobody can stop it now.)
+  function unstoppable() {
+    const s = engine.state;
+    const b = s.ball;
+    if (s.phase !== PHASE.PLAYING || !b.visible || !b.vx) return false;
+    const side = b.vx < 0 ? 'left' : 'right'; // the goal it's heading for
+    const def = s.paddles.find((p) => p.side === side && p.lane === LANE.DEFENCE);
+    if (!def) return false;
+    const behind = side === 'left' ? b.x + BALL.radius < def.x - def.w / 2 : b.x - BALL.radius > def.x + def.w / 2;
+    if (!behind) return false;
+    const endX = side === 'left' ? 0 : COURT.width;
+    const yAtLine = b.y + (b.vy / b.vx) * (endX - b.x);
+    const diff = s.settings.difficulty;
+    return yAtLine > rules.goalTop(diff) + BALL.radius && yAtLine < rules.goalBottom(diff) - BALL.radius;
+  }
+
   return {
     start({ mode: modeId, options, players: list }) {
       players = list.map((p) => ({ ...p }));
       mode = modeId;
       ended = false;
+      freeze = 0;
       pending = [];
       replay.stop();
       renderer.replaying = false;
       renderer.mode = mode;
-      renderer.players = Object.fromEntries(players.map((p) => [p.seat, { avatar: p.avatar, color: p.color }]));
+      renderer.players = Object.fromEntries(players.map((p) => [p.seat, { avatar: p.avatar, color: p.color, art: p.art }]));
       for (const seat of Object.keys(layouts)) delete layouts[seat];
       engine.setSettings({ mode, difficulty: options.difficulty });
       const sides = Object.fromEntries(players.map((p) => [p.seat, p.side]));
@@ -198,7 +240,10 @@ export function createGame(host) {
       }
       shown = null;
       if (ended) return;
-      const events = [...pending, ...engine.step(dt)];
+      // Game feel: a split-second hold on each kick, and slow motion once nobody
+      // can stop a ball heading into goal. Both slow the whole game evenly.
+      if (freeze > 0 && !pending.length) { freeze -= dt; updateMessages(); return; }
+      const events = [...pending, ...engine.step(dt * (unstoppable() ? SLOW_MOTION : 1))];
       pending = [];
       const s = engine.state;
       const scored = events.some((e) => e.type === 'point');
@@ -224,7 +269,7 @@ export function createGame(host) {
     playerJoined(player) {
       if (mode !== 'team' || players.some((p) => p.seat === player.seat)) return false;
       players.push({ ...player, side: 'left' });
-      renderer.players[player.seat] = { avatar: player.avatar, color: player.color };
+      renderer.players[player.seat] = { avatar: player.avatar, color: player.color, art: player.art };
       engine.colors[player.seat] = player.color;
       engine.addPlayer(player.seat, player.boost || 0);
       updateLayouts();

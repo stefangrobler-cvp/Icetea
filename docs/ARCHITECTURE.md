@@ -75,9 +75,10 @@ the 👍 / 👎 share per game from the after-match `feedback` vote.
 Menus (`web/css/voxel.css`, loaded after `platform.css`) and games share one look:
 a night-violet block world, neon player colours, pixel-art animals and icons
 (`shared/pixels.js`; the phones still save the emoji, which is the animal's id).
-Games get each player's animal as plain data in `players[].art`. Pong draws in 3D
-with three.js r128 kept in `games/pong/vendor/` (MIT, network loaders switched off),
-and falls back to its flat 2D drawing (`renderer2d.js`) when a screen has no WebGL.
+Games get each player's animal as plain data in `players[].art`. Pong and Soccer
+draw in 3D with three.js r128, each keeping its own copy in `vendor/` (MIT, network
+loaders switched off), and fall back to their flat 2D drawing (`renderer2d.js`) when
+a screen has no WebGL.
 
 ## Help for younger players
 
