@@ -690,14 +690,27 @@ function startScreen() {
 
     // Results: the winner's animal with a crown, and the final score.
     if (phase === 'results' && results) {
+      // The winner keeps the crown, but every player is cheered. When the computer
+      // wins, the children come first ("Great game!"), not a crowned robot.
+      const seats = match?.seats || [];
+      const kids = seats.map((s) => players[s].profile.avatar).join('');
       let avatar;
       let text;
-      if (results.winner == null) { avatar = '🤝'; text = 'Draw!'; }
-      else if (results.computerWon) { avatar = '🤖'; text = 'Computer wins!'; }
+      let note = '';
+      let cheer = false;
+      if (results.winner == null) { avatar = kids; text = 'Great game!'; note = 'It\'s a draw'; }
+      else if (results.computerWon) { avatar = kids; text = 'Great game!'; note = 'The computer won this time'; }
       else if (results.team) { avatar = results.winners.map((s) => players[s].profile.avatar).join(''); text = 'Team wins!'; }
-      else { const s = results.winners[0]; avatar = players[s].profile.avatar; text = `${players[s].profile.name} wins!`; }
+      else { const s = results.winners[0]; avatar = players[s].profile.avatar; text = `${players[s].profile.name} wins!`; cheer = seats.length > 1; }
       $('winner-avatar').innerHTML = pixRow(avatar, 'pix who');
-      $('crown-pix').hidden = results.winner == null;
+      $('crown-pix').hidden = results.winner == null || results.computerWon;
+      $('result-note').textContent = note;
+      $('result-note').hidden = !note;
+      $('cheer').hidden = !cheer;
+      if (cheer) {
+        $('cheer').innerHTML = `<b>Great game, everyone!</b><span>${seats.map((s, i) =>
+          `<span class="cheer-one" style="--c:${theme.seats[s]};animation-delay:${i * 0.12}s">${pix(players[s].profile.avatar)}<small>${esc(players[s].profile.name)}</small></span>`).join('')}</span>`;
+      }
       const colors = match ? sideColors(match) : {};
       const order = match?.modeSpec.sides.filter((side) => side in (results.scores || {})) || [];
       $('final-score').innerHTML = order.map((side) => `<span style="color:${colors[side] || theme.text}">${results.scores[side]}</span>`).join('<i>–</i>');
@@ -707,7 +720,8 @@ function startScreen() {
         b.disabled = Boolean(mine) && b.dataset.vote !== mine;
       }
       $('winner-text').textContent = text;
-      $('results').style.setProperty('--c', results.computerWon ? theme.cpu : theme.seats[results.winners[0]] || theme.text);
+      const lead = results.computerWon || results.winner == null ? theme.seats[seats[0]] : theme.seats[results.winners[0]];
+      $('results').style.setProperty('--c', lead || theme.text);
     }
   }
 

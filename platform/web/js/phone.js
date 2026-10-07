@@ -359,16 +359,23 @@ function render() {
   show('results', phase === 'results');
   const r = state.results;
   if (phase === 'results' && r) {
-    let icon;
-    let text;
-    if (r.winner == null) { icon = '🤝'; text = 'Draw!'; }
-    else if (r.computerWon) { icon = '🤖'; text = 'Computer wins!'; }
-    else if (r.team) { icon = r.winners.map((s) => state.players[s]?.avatar).join(''); text = 'TEAM WINS!'; }
-    else if (r.winners.includes(seat)) { icon = state.players[seat]?.avatar; text = 'YOU WIN!'; }
-    else { icon = state.players[r.winners[0]]?.avatar; text = `${state.players[r.winners[0]]?.name} wins!`; }
-    $('over-icon').innerHTML = `${r.winner != null ? pix('👑', 'pix crown-small') : ''}${pixRow(icon || '🏆')}`;
+    // Winners get the crown; everyone else sees their own animal with a star.
+    const mineAvatar = state.players[seat]?.avatar;
+    const won = r.winners?.includes(seat);
+    let icon = mineAvatar;
+    let badge = '⭐';
+    let text = 'Great game!';
+    let sub = '';
+    if (r.winner == null) sub = 'It\'s a draw';
+    else if (r.computerWon) sub = 'The computer won this time';
+    else if (r.team) { icon = r.winners.map((s) => state.players[s]?.avatar).join(''); badge = '👑'; text = 'TEAM WINS!'; }
+    else if (won) { badge = '👑'; text = 'YOU WIN!'; }
+    else sub = `${state.players[r.winners[0]]?.name} won`;
+    $('over-icon').innerHTML = `${pix(badge, 'pix crown-small')}${pixRow(icon || '🏆')}`;
     $('over-text').textContent = text;
-    $('over-text').style.color = r.computerWon ? '#ffe600' : state.players[r.winners[0]]?.color || '#ffffff';
+    $('over-text').style.color = state.players[seat]?.color || '#ffffff'; // always in this player's own colour
+    $('over-sub').textContent = sub;
+    $('over-sub').hidden = !sub;
     $('again').disabled = !state.canStart;
     // Did you like it? One tap, then the other thumb fades.
     const mine = r.votes?.[seat];

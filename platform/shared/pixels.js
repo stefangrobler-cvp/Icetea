@@ -76,6 +76,7 @@ export const ICON_ART = {
   '🔇': ['...w....', '..ww....', 'wwww.m.m', 'wwww..m.', 'wwww.m.m', '..ww....', '...w....'],
   '🔁': ['.kkkkk..', 'k.....k.', 'k....kkk', 'k.....k.', 'k.......', '.kkkkk..'],
   '🏠': ['....w....', '...www...', '..wwwww..', '.wwwwwww.', 'wwwwwwwww', '.ww...ww.', '.ww.y.ww.', '.ww...ww.'],
+  '⭐': ['....y....', '....y....', '...yyy...', 'yyyyyyyyy', '.yyyyyyy.', '..yyyyy..', '..yy.yy..', '.yy...yy.'],
   '❓': ['.wwww.', 'ww..ww', '....ww', '...ww.', '..ww..', '......', '..ww..'],
 };
 

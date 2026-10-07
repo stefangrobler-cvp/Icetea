@@ -404,7 +404,8 @@ export class Renderer {
         this.burst(s * CX, FLOOR, this.fall.z, color, 34, 5, 9, 0.3);
         this.gutters[out].material.color.set(color);
         this.gutters[out].material.opacity = 1;
-        for (const c of this.cast) { if (c.side === ev.scorer) c.jump = 1; else c.sad = 1; }
+        // The scorers jump; the others give a little hop too (nobody droops: kids hate losing).
+        for (const c of this.cast) { if (c.side === ev.scorer) c.jump = 1; else c.nod = 1; }
         this.shake = 0.55;
         this.push = s;
       }

@@ -530,7 +530,8 @@ export class Renderer {
           this.goals[into].slot.material.color.set(color);
           this.goals[into].slot.material.opacity = 1;
         }
-        for (const c of this.cast) { if (c.side === ev.scorer) c.jump = 1; else c.sad = 1; }
+        // The scorers jump; the others give a little hop too (nobody droops: kids hate losing).
+        for (const c of this.cast) { if (c.side === ev.scorer) c.jump = 1; else c.nod = 1; }
         this.shake = 0.55;
         this.push = s;
         this.banner = { t: 0, color };

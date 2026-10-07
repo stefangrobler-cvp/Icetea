@@ -215,3 +215,15 @@ button.go:not([disabled]).breathe { animation: breathe 1.8s ease-in-out infinite
   .settings .row.game-cards { grid-template-columns: repeat(2, 1fr); }
 }
 @media (prefers-reduced-motion: reduce) { button.go.breathe, .game-cards button.selected .icon img { animation: none; } }
+
+/* Everyone who played is cheered on the results screen */
+#result-note { font-size: clamp(15px, 1.8vw, 20px); color: var(--text); }
+.cheer { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.cheer b { font: 11px var(--pixel); color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+.cheer > span { display: flex; gap: 18px; }
+.cheer-one { display: flex; flex-direction: column; align-items: center; gap: 4px; animation: cheer-hop 0.9s ease-in-out infinite; }
+.cheer-one img { width: 54px; height: auto; filter: drop-shadow(0 0 8px var(--c)); }
+.cheer-one small { font-size: 14px; font-weight: 600; color: var(--c); }
+@keyframes cheer-hop { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-12px); } }
+#over-sub { color: var(--text); font-size: 16px; margin-top: -10px; }
+@media (prefers-reduced-motion: reduce) { .cheer-one { animation: none; } }
