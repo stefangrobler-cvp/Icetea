@@ -33,12 +33,14 @@
 
   <!-- Who are you? Nickname and avatar (remembered on this phone) -->
   <section id="profile" class="overlay solid hidden">
-    <p class="medium neon" style="color: var(--me)">Who are you?</p>
-    <input id="name" class="name-input" type="text" maxlength="12" autocomplete="off"
-           autocapitalize="words" spellcheck="false" placeholder="Nickname" enterkeyhint="done">
-    <p id="name-hint" class="small hidden">Please pick another nickname</p>
+    <!-- Animals first: a child who can't read or type picks one and taps GO. -->
+    <p class="medium neon pick-title" style="color: var(--me)">Pick your animal</p>
     <div id="avatars" class="avatar-grid"></div>
-    <button id="profile-done" class="go start-btn">LET'S GO</button>
+    <label class="name-optional" for="name">Your name <span>(you can skip this)</span></label>
+    <input id="name" class="name-input small-name" type="text" maxlength="12" autocomplete="off"
+           autocapitalize="words" spellcheck="false" placeholder="Name" enterkeyhint="done">
+    <p id="name-hint" class="small hidden">Please pick another name</p>
+    <button id="profile-done" class="go start-btn breathe">LET'S GO</button>
   </section>
 
   <!-- Lobby: pick a game, how to play it, and start -->

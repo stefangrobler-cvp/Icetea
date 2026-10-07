@@ -4,6 +4,12 @@
 export const AVATARS = ['🦊', '🐼', '🐯', '🐸', '🦄', '🐵', '🐶', '🐱', '🦁', '🐨', '🐰', '🐙'];
 export const NAME_MAX = 12; // letters
 
+// A player who skips the name is called after their animal, which a child can recognise.
+export const ANIMAL_NAMES = {
+  '🦊': 'Fox', '🐼': 'Panda', '🐯': 'Tiger', '🐸': 'Frog', '🦄': 'Unicorn', '🐵': 'Monkey',
+  '🐶': 'Dog', '🐱': 'Cat', '🦁': 'Lion', '🐨': 'Koala', '🐰': 'Rabbit', '🐙': 'Octopus',
+};
+
 // Help for a younger player: 0 none, 1 a little, 2 a lot. Games make that
 // player's paddle (or players) bigger; it never makes anyone else's game harder.
 export const BOOSTS = [
@@ -31,7 +37,7 @@ export function nicknameAllowed(name) {
   return !BLOCKED.some((w) => plain.includes(w));
 }
 
-/** Tidy up a nickname/avatar sent by a phone, falling back to "Player 1" etc. */
+/** Tidy up a nickname/avatar sent by a phone; no name (or a blocked one) becomes the animal's name. */
 export function cleanProfile(profile, seat) {
   // Array.from keeps emoji in a name in one piece when shortening it.
   const raw = Array.from(String(profile?.name ?? '').replace(/[\u0000-\u001f\u007f]/g, '').trim());
@@ -39,7 +45,7 @@ export function cleanProfile(profile, seat) {
   if (!nicknameAllowed(name)) name = '';
   const avatar = AVATARS.includes(profile?.avatar) ? profile.avatar : defaultAvatar(seat);
   const boost = [0, 1, 2].includes(profile?.boost) ? profile.boost : 0;
-  return { name: name || `Player ${seat}`, avatar, boost };
+  return { name: name || ANIMAL_NAMES[avatar] || `Player ${seat}`, avatar, boost };
 }
 
 /** "🦊 Mia" */

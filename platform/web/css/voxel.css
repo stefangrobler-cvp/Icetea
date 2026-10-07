@@ -227,3 +227,14 @@ button.go:not([disabled]).breathe { animation: breathe 1.8s ease-in-out infinite
 @keyframes cheer-hop { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-12px); } }
 #over-sub { color: var(--text); font-size: 16px; margin-top: -10px; }
 @media (prefers-reduced-motion: reduce) { .cheer-one { animation: none; } }
+
+/* Phone: pick an animal first; the name is a small optional extra */
+#profile { gap: 14px; }
+#profile .pick-title { font-family: var(--pixel); font-size: 16px; line-height: 1.5; }
+.name-optional { font-size: 15px; font-weight: 600; color: var(--muted); margin-top: 6px; }
+.name-optional span { font-weight: 500; opacity: 0.8; }
+.name-input.small-name { font-size: 20px; padding: 10px; width: min(70vw, 300px); border-width: 2px; border-color: var(--violet-3); }
+.name-input.small-name:focus { border-color: var(--me); }
+.avatar-grid button.selected img { animation: picked 0.35s cubic-bezier(.3, 1.8, .5, 1); }
+@keyframes picked { from { transform: scale(0.7); } }
+@media (prefers-reduced-motion: reduce) { .avatar-grid button.selected img { animation: none; } }

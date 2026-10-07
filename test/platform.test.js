@@ -3,19 +3,21 @@ import assert from 'node:assert/strict';
 import { cleanProfile, playerLabel, nicknameAllowed } from '../platform/shared/profile.js';
 import { createMetrics, memoryStore } from '../platform/server/metrics.js';
 
-test('nicknames are tidied up and fall back to "Player N"', () => {
+test('nicknames are tidied up and fall back to the animal', () => {
   assert.deepEqual(cleanProfile({ name: '  Mia  ', avatar: '🐯', boost: 2 }, 1), { name: 'Mia', avatar: '🐯', boost: 2 });
-  assert.deepEqual(cleanProfile({ name: '', avatar: 'x', boost: 9 }, 2), { name: 'Player 2', avatar: '🐼', boost: 0 });
+  // No name: the player is called after their animal (the default animal for seat 2 is the panda).
+  assert.deepEqual(cleanProfile({ name: '', avatar: 'x', boost: 9 }, 2), { name: 'Panda', avatar: '🐼', boost: 0 });
+  assert.equal(cleanProfile({ name: '', avatar: '🐸' }, 1).name, 'Frog');
   assert.equal(cleanProfile({ name: 'Bartholomew-the-Great' }, 1).name, 'Bartholomew-');
   assert.equal(cleanProfile({ name: 'a\u0007b' }, 1).name, 'ab');
   assert.equal(playerLabel({ 1: { name: 'Leo', avatar: '🦁' } }, 1), '🦁 Leo');
-  assert.equal(playerLabel({}, 2), '🐼 Player 2');
+  assert.equal(playerLabel({}, 2), '🐼 Panda');
 });
 
 test('nickname filter blocks rude words, also with spaces and number swaps', () => {
   for (const ok of ['Mia', 'Leo', 'Super Sam', 'Ana 7']) assert.ok(nicknameAllowed(ok), ok);
   for (const bad of ['sh1t', 'F U C K', 'poes', 'b!tch']) assert.equal(nicknameAllowed(bad), false, bad);
-  assert.equal(cleanProfile({ name: 'sh1t' }, 3).name, 'Player 3');
+  assert.equal(cleanProfile({ name: 'sh1t' }, 3).name, 'Tiger'); // blocked name: the seat's default animal (tiger)
 });
 
 test('measurement: returning devices, numbers summary, and only known measurements are kept', () => {

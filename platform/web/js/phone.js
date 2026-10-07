@@ -5,7 +5,7 @@
 // only from the controller kit. No game code ever runs on the phone.
 
 import { MSG, ACTIONS } from '/platform/shared/protocol.js';
-import { AVATARS, BOOSTS, cleanProfile, defaultAvatar, nicknameAllowed } from '/platform/shared/profile.js';
+import { AVATARS, BOOSTS, ANIMAL_NAMES, cleanProfile, defaultAvatar, nicknameAllowed } from '/platform/shared/profile.js';
 import { Connection, keepScreenOn } from './net.js';
 import { PhoneLink } from './direct.js';
 import { mountLayout } from './kit/kit.js';
@@ -238,7 +238,7 @@ $('profile-done').addEventListener('click', () => {
     return;
   }
   const tidy = cleanProfile({ name: typed, avatar: pickedAvatar }, seat || 1);
-  // An empty nickname stays empty, so it shows as "Player 1" or "Player 2" for whichever seat we get.
+  // An empty nickname stays empty: the player is then called after their animal ("Frog").
   profile = { name: typed ? tidy.name : '', avatar: tidy.avatar, boost: profile?.boost || 0 };
   localStorage.setItem('fgp.profile', JSON.stringify(profile));
   sessionStorage.setItem('fgp.profileRoom', roomCode);
@@ -302,7 +302,7 @@ function render() {
   // Lobby: the game list, modes and options, all from the games' manifests.
   show('lobby', phase === 'lobby');
   if (phase === 'lobby') {
-    $('you-are').textContent = profile?.name ? `Hi ${profile.name}!` : `You are Player ${seat}`;
+    $('you-are').textContent = `Hi ${profile?.name || ANIMAL_NAMES[profile?.avatar] || `Player ${seat}`}!`;
     for (const b of $('boost-row').children) b.classList.toggle('selected', Number(b.dataset.boost) === (profile?.boost || 0));
     const key = JSON.stringify([state.catalogue, state.selection]);
     if (key !== lastLobby) {
