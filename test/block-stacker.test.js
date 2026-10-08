@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Engine, PHASE, FORCES, shapeLayout, turnCells } from '../games/block-stacker/engine.js';
-import { HEARTS, DIFFICULTIES, PLATFORM, FORCE, SHAPES, SHAPE_SETS, SHAPE_GOAL, CELL } from '../games/block-stacker/config.js';
+import { DIFFICULTIES, PLATFORM, FORCE, SHAPES, SHAPE_SETS, SHAPE_GOAL, CELL, ASSIST, LOCK, PERFECT } from '../games/block-stacker/config.js';
 
 // Block Stacker's own rules and physics, tested without any platform.
 
@@ -69,19 +69,62 @@ test('block-stacker: careful stacking reaches the goal and the team wins (every 
   }
 });
 
-test('block-stacker: blocks dropped off the platform cost hearts, and the computer wins at zero', () => {
+test('block-stacker: a block that falls off is just an oops - nobody loses, the game goes on', () => {
   const e = new Engine({ rng: seeded(4) });
   e.setDifficulty('hard'); // the widest swing, so a block can be dropped clear of the platform
   e.startMatch('team', team([1]));
   run(e, 3.1);
-  const events = run(e, 120, (eng) => {
+  const events = run(e, 60, (eng) => {
     // Drop only when the block is well away from the platform.
     const t = eng.view().towers[0];
     if (t.hanging && Math.abs(t.hanging.x - t.x) > t.width * 0.6) eng.drop(1);
   });
-  assert.equal(events.filter((ev) => ev.type === 'lost').length, HEARTS);
-  assert.equal(e.state.towers[0].hearts, 0);
-  assert.equal(e.state.winner, 'cpu');
+  assert.ok(events.filter((ev) => ev.type === 'lost').length >= 4);
+  assert.equal(e.state.phase, PHASE.PLAYING, 'still playing');
+  assert.ok(!('hearts' in e.view().towers[0]));
+  assert.deepEqual(e.scores(), { team: 0, cpu: 0 });
+});
+
+test('block-stacker: the aiming helper slides a nearly-right drop over the tower (not on hard as much)', () => {
+  for (const level of ['easy', 'medium', 'hard']) {
+    const e = new Engine({ rng: seeded(30) });
+    e.setDifficulty(level);
+    e.startMatch('team', team([1]));
+    run(e, 3.1);
+    const t = e.state.towers[0];
+    const off = t.width * ASSIST[level].range * 0.9; // just inside the helper's reach
+    t.hanging.phase = Math.asin(off / (t.width * t.hanging.swing)); // put the swing there
+    e.drop(1);
+    const block = e.state.blocks[0];
+    assert.ok(Math.abs(block.x - t.x - off * (1 - ASSIST[level].pull)) < 1, level);
+  }
+});
+
+test('block-stacker: a drop right on top is a PERFECT', () => {
+  const e = new Engine({ rng: seeded(31) });
+  e.startMatch('team', team([1]));
+  run(e, 3.1);
+  const t = e.state.towers[0];
+  t.hanging.phase = 0; // dead centre
+  e.drop(1);
+  const events = run(e, 2);
+  assert.ok(events.some((ev) => ev.type === 'perfect' && ev.seat === 1));
+  assert.ok(PERFECT > 0);
+});
+
+test('block-stacker: settled blocks lock in place, all but the top one', () => {
+  const e = new Engine({ rng: seeded(32) });
+  e.startMatch('team', team([1]));
+  run(e, 40, careful);
+  const blocks = [...e.state.blocks].filter((b) => b.landed).sort((a, b) => a.y - b.y);
+  assert.ok(blocks.length >= 4);
+  assert.ok(blocks.slice(LOCK.loose + 1).every((b) => b.locked), 'the lower blocks are locked');
+  for (const b of blocks.filter((x) => x.locked)) assert.ok(Math.abs(b.angle % (Math.PI / 2)) < 1e-6, 'locked blocks sit straight');
+  // An earthquake moves locked blocks along with the island, and puts them back.
+  const x0 = blocks.at(-1).x;
+  e.startForce(e.state.towers[0], 'quake', 'cpu');
+  run(e, FORCE.warn + FORCE.last + 0.5);
+  assert.ok(Math.abs(e.state.blocks.find((b) => b.id === blocks.at(-1).id).x - x0) < 1);
 });
 
 test('block-stacker: the computer warns before every force, and sends both wind and earthquakes', () => {
@@ -100,7 +143,7 @@ test('block-stacker: the computer warns before every force, and sends both wind 
   assert.ok(kinds.has('wind') && kinds.has('quake'));
 });
 
-test('block-stacker: running out of time loses for the team', () => {
+test('block-stacker: running out of time before the flag: the computer wins', () => {
   const e = new Engine({ rng: seeded(6) });
   e.startMatch('team', team([1]));
   e.state.time = 5;
@@ -115,7 +158,7 @@ test('block-stacker: a waiting block drops by itself after a while', () => {
   assert.ok(events.some((ev) => ev.type === 'drop' && ev.auto));
 });
 
-test('block-stacker: tower race - a tower each, dropping at the same time, last one standing wins', () => {
+test('block-stacker: tower race - a tower each, dropping at the same time; nobody is knocked out', () => {
   const e = new Engine({ rng: seeded(8) });
   e.setDifficulty('hard');
   e.startMatch('versus', [
@@ -125,7 +168,7 @@ test('block-stacker: tower race - a tower each, dropping at the same time, last 
   assert.equal(e.state.towers.length, 2);
   run(e, 3.1);
   assert.ok(e.view().towers.every((t) => t.hanging), 'both have a block at once');
-  const events = run(e, 120, (eng) => {
+  const events = run(e, 200, (eng) => {
     for (const t of eng.view().towers) {
       if (!t.hanging) continue;
       const off = Math.abs(t.hanging.x - t.x);
@@ -133,11 +176,11 @@ test('block-stacker: tower race - a tower each, dropping at the same time, last 
       if (t.seats[0] === 2 && off > t.width * 0.6) eng.drop(2); // misses every time
     }
   });
-  assert.ok(events.some((ev) => ev.type === 'out' && ev.seat === 2));
-  assert.equal(e.state.winner, 'p1');
+  assert.ok(events.filter((ev) => ev.type === 'lost' && ev.seat === 2).length >= 3, 'player 2 keeps playing after misses');
+  assert.equal(e.state.winner, 'p1', 'the tallest tower when time runs out');
 });
 
-test('block-stacker: tower race - when time runs out, the most blocks wins', () => {
+test('block-stacker: tower race - when time runs out, the tallest tower wins', () => {
   const e = new Engine({ rng: seeded(9) });
   e.startMatch('versus', [{ seat: 1, side: 'p1' }, { seat: 2, side: 'p2' }, { seat: 3, side: 'p3' }]);
   run(e, 3.1);

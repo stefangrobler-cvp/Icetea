@@ -52,9 +52,10 @@ export function createGame(host) {
   const shown = {}; // seat -> last layout params sent, so phones only get changes
 
   const avatar = (seat) => players.find((p) => p.seat === seat)?.avatar || '🙂';
-  // Each phone's own running counts, so it can cheer when its block lands (or wobble when one falls).
-  const tally = {}; // seat -> { landed, lost }
-  const mine = (seat) => tally[seat] || (tally[seat] = { landed: 0, lost: 0 });
+  // Each phone's own running counts, so it can cheer when its block lands (louder for a
+  // PERFECT drop), or give a gentle "oops" when one falls off.
+  const tally = {}; // seat -> { landed, lost, perfect }
+  const mine = (seat) => tally[seat] || (tally[seat] = { landed: 0, lost: 0, perfect: 0 });
 
   const FORCE_ICON = { wind: '💨', quake: '🌋' };
 
@@ -64,7 +65,7 @@ export function createGame(host) {
     const s = engine.state;
     const tower = mode === 'team' ? s.towers[0] : s.towers.find((t) => t.seats[0] === seat);
     const params = dropParams(seat, tower);
-    const myTurn = s.phase === PHASE.PLAYING && tower?.hanging?.seat === seat && !tower.out;
+    const myTurn = s.phase === PHASE.PLAYING && tower?.hanging?.seat === seat;
     if (shapes) params.turn = { ready: myTurn, icon: '🔄' };
     if (mode === 'versus') params.force = forceParams(tower);
     return params;
@@ -75,7 +76,6 @@ export function createGame(host) {
     if (s.phase === PHASE.COUNTDOWN) return { ready: false, icon: String(Math.max(1, Math.ceil(s.countdown))) };
     if (s.phase === PHASE.OVER) return { ready: false, icon: s.winner === 'cpu' ? '🤖' : '🏁' };
     if (!tower) return { ready: false, icon: '⏳' };
-    if (tower.out) return { ready: false, icon: '💔' };
     // The phone shows its own block (or shape) hanging on a wire; tap and it drops.
     const block = { look: 'block', ...mine(seat) };
     const h = tower.hanging;
@@ -88,7 +88,7 @@ export function createGame(host) {
   function forceParams(tower) {
     const s = engine.state;
     const icon = FORCE_ICON[tower?.nextForce] || '💨';
-    if (!tower || tower.out || s.phase === PHASE.OVER) return { ready: false, icon };
+    if (!tower || s.phase === PHASE.OVER) return { ready: false, icon };
     if (s.phase === PHASE.COUNTDOWN) return { ready: false, icon };
     if (tower.charge > 0) return { ready: false, icon, recharge: tower.chargeFull, chargeId: tower.forcesSent };
     return { ready: true, icon };
@@ -126,13 +126,14 @@ export function createGame(host) {
         const scores = engine.scores();
         best = Math.max(best, ...Object.values(scores));
         report('point-scored', { side: mode === 'team' ? 'team' : engine.state.towers[ev.tower].side, scores });
+      } else if (ev.type === 'perfect') {
+        sounds.perfect();
+        mine(ev.seat).perfect += 1;
       } else if (ev.type === 'lost') {
+        // Just an oops: nobody loses anything but a little time.
         sounds.lost();
         mine(ev.seat).lost += 1;
-        host.vibrate(ev.seat, 150);
-        if (mode === 'team') report('point-scored', { side: 'cpu', scores: engine.scores() });
-      } else if (ev.type === 'out') {
-        host.vibrate(ev.seat, 300);
+        host.vibrate(ev.seat, 60);
       } else if (ev.type === 'rotate') {
         sounds.turn90();
       } else if (ev.type === 'force-sent') {

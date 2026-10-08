@@ -46,7 +46,8 @@ export function makeSounds(audio) {
     turn: () => beep(740, 0.07, 'triangle', 0.15),
     drop: () => beep(900, 0.22, 'triangle', 0.18, 0, 300),
     land: (power = 0.5) => { beep(120 + power * 80, 0.12, 'square', 0.18 + power * 0.12); rumble(0.12, 0.2 * power); },
-    lost: () => beep(500, 0.5, 'sawtooth', 0.15, 0, 70),
+    lost: () => beep(420, 0.35, 'triangle', 0.14, 0, 200), // a soft "boing", not a fail sound
+    perfect: () => [784, 988, 1319].forEach((f, i) => beep(f, 0.12, 'square', 0.13, 0.05 + i * 0.07)),
     warn: () => { beep(880, 0.16, 'square', 0.2); beep(660, 0.16, 'square', 0.2, 0.22); beep(880, 0.16, 'square', 0.2, 0.44); },
     quake: () => { rumble(1.4, 0.5); beep(60, 1.1, 'sawtooth', 0.12); },
     wind: () => { rumble(1.6, 0.35, 900, 0.6); beep(300, 1.4, 'sine', 0.05, 0, 520); },

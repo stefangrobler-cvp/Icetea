@@ -290,6 +290,7 @@ button.go:not([disabled]).breathe { animation: breathe 1.8s ease-in-out infinite
 .tap-control.block-look .tap-pop { display: block; position: absolute; left: 50%; top: 52%; translate: -50% -50%; font: 64px var(--pixel); opacity: 0; pointer-events: none; }
 .tap-pop.cheer { color: #39ff7a; text-shadow: 0 0 20px #39ff7a; }
 .tap-pop.oops { color: #ffb3d9; font-size: 34px; }
+.tap-pop.perfect { color: #ffe600; text-shadow: 0 0 20px #ffe600; font-size: 34px; }
 .tap-pop.cheer.go { animation: tap-plus 0.9s cubic-bezier(.3, 1.6, .5, 1) forwards; }
 .tap-pop.oops.go { animation: tap-oops 0.9s ease-in-out forwards; }
 @keyframes tap-plus { 0% { opacity: 0; transform: scale(0.4); } 25% { opacity: 1; transform: scale(1.2); } 100% { opacity: 0; transform: translateY(-80px) scale(1); } }

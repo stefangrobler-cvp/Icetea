@@ -14,7 +14,8 @@
 //             (e.g. a dash that needs to recharge); chargeId tells one recharge from the next
 //   look: 'block' shows the player's own block (their colour and animal) hanging
 //         on a wire, which drops when tapped. `landed` and `lost` are running
-//         counts: when one goes up, the phone cheers (+1) or wobbles (oops).
+//         counts (and `perfect`): when one goes up, the phone cheers (+1, or PERFECT!)
+//         or gives a gentle wobble (oops).
 //         grid: [[col, row]] draws the block as a shape of cubes, turned `turns`
 //         quarter turns clockwise (it spins round when that changes).
 // Sends { down: true } when pressed and { down: false } when let go, reliably.
@@ -45,7 +46,7 @@ export function tap(el, spec, ctx, all = {}) {
   let p = params;
   let down = false;
   let shownIcon = null;
-  let seen = { landed: params.landed || 0, lost: params.lost || 0 };
+  let seen = { landed: params.landed || 0, lost: params.lost || 0, perfect: params.perfect || 0 };
 
   function setIcon(value) {
     if (value === shownIcon) return;
@@ -70,9 +71,12 @@ export function tap(el, spec, ctx, all = {}) {
       // A block of mine landed (cheer) or fell off (gentle wobble).
       const landed = p.landed || 0;
       const lost = p.lost || 0;
-      if (landed > seen.landed) burst('+1', 'cheer');
+      const perfect = p.perfect || 0;
+      if (perfect > seen.perfect) burst('PERFECT!', 'cheer perfect');
+      else if (landed > seen.landed) burst('+1', 'cheer');
       else if (lost > seen.lost) burst('oops', 'oops');
-      seen = { landed, lost };
+      // A PERFECT arrives just after its landing: keep the +1 count so it isn't shown twice.
+      seen = { landed, lost, perfect };
     } else {
       setIcon(p.icon || spec.label || '👆');
       text.textContent = p.text || '';
@@ -123,7 +127,7 @@ export function tap(el, spec, ctx, all = {}) {
     pop.className = `tap-pop ${kind}`;
     void pop.offsetWidth;
     pop.classList.add('go');
-    if (kind === 'cheer') {
+    if (kind.startsWith('cheer')) {
       for (let i = 0; i < 10; i++) {
         const b = document.createElement('i');
         b.className = 'tap-confetti';

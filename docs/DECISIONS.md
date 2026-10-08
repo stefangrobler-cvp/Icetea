@@ -2,6 +2,16 @@
 
 Short entries, newest first. Why we chose something, and when to look at it again.
 
+## 2026-10-08: Block Stacker has no hearts; friendlier stacking (owner approved)
+- **Why:** the owner's family found it hard even on Easy, and Hard almost impossible.
+- **What:** no hearts and nobody knocked out: a fallen block is an "oops" (lost time only). Team: reach
+  the flag before time runs out. Tower race: tallest tower when time runs out. Settled blocks lock
+  (all but the top one; a block left at a slant is tipped off), an aiming helper on every level
+  (strongest on Easy), PERFECT drops, calmer start on Easy, goals 8 / 12 / 15.
+- **How we tuned:** a simulated "real child" with sloppy timing. Classic: almost no oopses on
+  Easy/Medium, a few on Hard. Shapes on Hard still drops roughly one block in three for a careless player.
+- **Watch:** Easy may now be too easy for older kids; that's what Medium/Hard are for.
+
 ## 2026-10-08: Block Stacker gets Shapes and forces (rule change, owner approved)
 - **What:** a "Blocks: Classic / Shapes" choice (turnable pieces of 2–4 cubes; team goal becomes a
   height), and forces: wind and earthquakes. The computer sends them in team mode; each player gets a

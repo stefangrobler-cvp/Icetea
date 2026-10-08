@@ -2,7 +2,7 @@
 // Neon arcade look: indigo perspective grid, see-through glowing blocks with bright
 // corners, a laser wire, sparks when blocks land.
 
-import { WORLD, PLATFORM, HEARTS, AUTO_DROP, COLORS } from './config.js';
+import { WORLD, PLATFORM, AUTO_DROP, COLORS } from './config.js';
 
 // Older iPads (before iOS 16) can't draw rounded rectangles natively.
 if (!CanvasRenderingContext2D.prototype.roundRect) {
@@ -26,7 +26,7 @@ export class Renderer {
     this.ctx = canvas.getContext('2d');
     this.players = {}; // seat -> { avatar, color }
     this.sparks = [];
-    this.flash = 0; // red flash when a block is lost
+    this.pops = []; // words that rise and fade (PERFECT!)
     this.time = 0;
     this.resize();
     this.onResize = () => this.resize();
@@ -57,8 +57,11 @@ export class Renderer {
   handleEvents(events, view) {
     for (const ev of events) {
       if (ev.type === 'land') this.burst(ev.x, ev.y, this.colorOf(ev.seat), 10 + Math.round(ev.power * 18), 1 + ev.power);
-      else if (ev.type === 'lost') {
-        this.flash = 1;
+      else if (ev.type === 'perfect') {
+        this.burst(ev.x, ev.y, '#ffe600', 22, 1.6);
+        this.pops.push({ text: 'PERFECT!', x: ev.x, y: ev.y - 60, life: 1 });
+      } else if (ev.type === 'lost') {
+        // Just an oops: a puff of pieces, no alarm.
         this.burst(ev.x, view.cameraTop + WORLD.height - 20, this.colorOf(ev.seat), 26, 2.2, true);
       } else if (ev.type === 'drop') {
         const t = view.towers[ev.tower];
@@ -98,6 +101,7 @@ export class Renderer {
     for (const t of view.towers) this.drawWire(t, view);
     for (const t of view.towers) this.drawForce(t, view);
     this.drawSparks(dt);
+    this.drawPops(dt);
 
     // Screen layer: scores, time, countdown.
     ctx.setTransform(this.scale, 0, 0, this.scale, this.ox, this.oy);
@@ -167,7 +171,7 @@ export class Renderer {
     const color = view.mode === 'team' ? COLORS.line : this.colorOf(t.seats[0]);
     const left = t.x - t.width / 2;
     ctx.save();
-    ctx.globalAlpha = t.out ? 0.3 : 1;
+    ctx.globalAlpha = 1;
     // Anti-gravity glow under the platform.
     const g = ctx.createLinearGradient(0, PLATFORM.y, 0, PLATFORM.y + 160);
     g.addColorStop(0, `${color}66`);
@@ -192,24 +196,20 @@ export class Renderer {
     ctx.strokeStyle = color;
     ctx.stroke();
 
-    // Under the platform: who it belongs to, hearts and blocks stacked.
+    // Under the platform: who it belongs to and how tall it is.
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     if (view.mode === 'versus') {
-      // One line under the platform: who, hearts, blocks stacked.
+      // Under the platform: who, and how tall.
       const p = this.players[t.seats[0]] || {};
       ctx.fillStyle = '#ffffff'; // emoji take on the fill's transparency in some browsers
       ctx.font = `44px ${FONT}`;
-      ctx.fillText(`${t.out ? '💔' : p.avatar || '🙂'}  ${this.hearts(t.hearts)}`, t.x, PLATFORM.y + 82);
+      ctx.fillText(p.avatar || '🙂', t.x, PLATFORM.y + 82);
       ctx.fillStyle = color;
       ctx.font = `bold 44px ${FONT}`;
-      ctx.fillText(`🧊 ${t.score}${!t.out && t.charge <= 0 ? (t.nextForce === 'quake' ? ' 🌋' : ' 💨') : ''}`, t.x, PLATFORM.y + 140);
+      ctx.fillText(`🧊 ${t.score}${t.charge <= 0 ? (t.nextForce === 'quake' ? ' 🌋' : ' 💨') : ''}`, t.x, PLATFORM.y + 140);
     }
     ctx.restore();
-  }
-
-  hearts(n) {
-    return '❤️'.repeat(n) + '🖤'.repeat(Math.max(0, HEARTS - n));
   }
 
   drawBlock(x, y, w, h, angle, color, alpha) {
@@ -263,7 +263,7 @@ export class Renderer {
   /** Wind or an earthquake on a tower: a warning icon first, then streaks or dust. */
   drawForce(t, view) {
     const f = t.force;
-    if (!f || t.out) return;
+    if (!f) return;
     const { ctx } = this;
     ctx.save();
     ctx.textAlign = 'center';
@@ -296,7 +296,6 @@ export class Renderer {
   }
 
   drawWire(t, view) {
-    if (t.out) return;
     const { ctx } = this;
     const span = t.width * (t.swing || 0.6) + 90;
     const y = t.wireY;
@@ -364,6 +363,23 @@ export class Renderer {
     ctx.restore();
   }
 
+  drawPops(dt) {
+    const { ctx } = this;
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = `bold 56px ${FONT}`;
+    for (const p of this.pops) {
+      p.life -= dt;
+      p.y -= dt * 70;
+      ctx.globalAlpha = Math.max(0, Math.min(1, p.life * 2));
+      ctx.fillStyle = '#ffe600';
+      ctx.fillText(p.text, p.x, p.y);
+    }
+    this.pops = this.pops.filter((p) => p.life > 0);
+    ctx.restore();
+  }
+
   drawSparks(dt) {
     const { ctx } = this;
     ctx.save();
@@ -414,11 +430,9 @@ export class Renderer {
     if (view.mode === 'team') {
       const t = view.towers[0];
       ctx.textAlign = 'left';
-      ctx.font = `40px ${FONT}`;
-      ctx.fillText(this.hearts(t.hearts), 30, 40);
       ctx.fillStyle = COLORS.text;
       ctx.font = `bold 44px ${FONT}`;
-      ctx.fillText(`🧊 ${t.score} / ${view.goal} 🏁`, 30, 100);
+      ctx.fillText(`🧊 ${t.score} / ${view.goal} 🏁`, 30, 50);
       // The computer: calm, warning, sending a force.
       const f = t.force;
       ctx.textAlign = 'right';
@@ -437,11 +451,10 @@ export class Renderer {
   drawOverlay(view, dt) {
     const { ctx } = this;
     ctx.save();
-    // Red edges (team): a warning before a force, and a flash when a block falls off.
+    // Red edges (team): a warning before a force, and the force itself.
     const f = view.mode === 'team' ? view.towers[0]?.force : null;
     const warn = f && !f.on ? 0.35 + 0.25 * Math.sin(this.time * 18) : 0;
-    const red = Math.max(warn, this.flash * 0.6, f?.on ? 0.5 : 0);
-    this.flash = Math.max(0, this.flash - dt * 2);
+    const red = Math.max(warn, f?.on ? 0.5 : 0);
     if (red > 0) {
       const g = ctx.createRadialGradient(WORLD.width / 2, WORLD.height / 2, WORLD.height * 0.35, WORLD.width / 2, WORLD.height / 2, WORLD.width * 0.7);
       g.addColorStop(0, 'rgba(255,40,80,0)');

@@ -57,7 +57,8 @@ export const manifest = {
   howTo: [
     { icon: '👆', text: 'Tap to drop your block' },
     { icon: '👀', text: 'Wait till it swings over the tower' },
-    { icon: '🏁', text: 'Stack up to the flag. Don\'t let blocks fall!' },
+    { icon: '🏁', text: 'Reach the flag before the time runs out' },
+    { icon: '⭐', text: 'Drop it right on top for a PERFECT' },
     { icon: '🔄', text: 'Shapes: turn them to fit' },
     { icon: '💨', text: 'Tower race: blow or shake the other towers' },
   ],

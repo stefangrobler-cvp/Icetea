@@ -3,13 +3,19 @@
 A plug-in game for the platform (see `platform/contract/README.md`).
 
 - **Team v computer (1–4 phones):** take turns dropping blocks onto one floating
-  platform. Reach the 🏁 line before the time runs out. The computer sends glitch
-  shakes (⚠️ warning first). Each block that falls off costs a ❤️; three and it's over.
-- **Tower race (2–4 phones):** a tower each, everyone drops at once. Lose all your ❤️
-  and you're out. Last one standing, or the most blocks when time runs out, wins.
+  platform. Reach the 🏁 flag before the time runs out. The computer sends wind and
+  earthquakes (⚠️ warning first, and not in the first 30 s on Easy).
+- **Tower race (2–4 phones):** a tower each, everyone drops at once. The tallest tower
+  when the time runs out wins.
+- **Nobody is ever out.** A block that falls off is just an "oops" (and lost time).
+  Settled blocks lock in place, all but the top one, so a wobble never brings the whole
+  tower down; a block left leaning at a slant is tipped off so the top stays flat.
+- **Aiming helper:** a drop that's nearly over the tower slides the rest of the way
+  (strongest on Easy, and always for players with help). A drop right on top is a
+  ⭐ PERFECT.
 - **Blocks: Classic or Shapes.** Shapes are pieces of 2–4 cubes (bar, square, corner,
   L, T, step) that you turn before dropping. In team mode the goal is then a height
-  (8 / 9 / 11 cubes high) instead of a number of blocks.
+  (7 / 9 / 11 cubes high) instead of a number of blocks.
 - **Forces:** gusts of wind (push the tower, harder near the top, and blow the hanging
   block aside) and earthquakes (shake the island). In team mode the computer sends them
   with a warning first; in the tower race each player has a force button that rocks
@@ -18,7 +24,8 @@ A plug-in game for the platform (see `platform/contract/README.md`).
   underneath: 🔄 turn (Shapes) and 💨 / 🌋 force (Tower race).
 - **Help for younger players:** wider blocks that swing slower; only the easy shapes,
   a bit bigger; forces rock their tower more gently.
-- **Levels:** goal 10 / 14 / 18 blocks; faster swing and stronger, more frequent forces.
+- **Levels:** goal 8 / 12 / 15 blocks; faster swing, a smaller aiming helper, and
+  stronger, more frequent forces.
 
 | File | What it does |
 |---|---|

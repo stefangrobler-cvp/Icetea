@@ -8,7 +8,7 @@
 // on a screen without 3D: players, handleEvents(events, view), draw(view, dt), destroy().
 
 import THREE from './vendor/three.js';
-import { WORLD, PLATFORM, HEARTS, COLORS } from './config.js';
+import { WORLD, PLATFORM, COLORS } from './config.js';
 
 const S = 80;
 const DEPTH = 1.0; // how deep the blocks are (the physics is flat; this is just for looks)
@@ -21,8 +21,6 @@ const ROBOT = {
     '.ykcckkccky.', '.ykkkkkkkky.', '.yyyyyyyyyy.', '.yykkkkkkyy.', '.yyyyyyyyyy.', '............'],
   palette: { y: '#ffe600', k: '#14082e', c: '#00f0ff' },
 };
-const HEART = { rows: ['.rr.rr.', 'rrrrrrr', 'rrrrrrr', '.rrrrr.', '..rrr..', '...r...'], palette: { r: '#ff3b6b' } };
-const HEART_EMPTY = { rows: HEART.rows, palette: { r: '#3b1d85' } };
 const FLAG = { rows: ['kwkwk', 'wkwkw', 'kwkwk'], palette: { k: '#14082e', w: '#f4f2ff' } };
 const CUBE = { rows: ['.cccc', 'cwwwc', 'cwwwc', 'cwwwc', 'cccc.'], palette: { c: '#7d8cff', w: '#c9d0ff' } };
 const DIGITS = {
@@ -95,7 +93,6 @@ export class Renderer {
     this.debris = [];
     this.time = 0;
     this.shake = 0;
-    this.flash = 0;
     this.camY = 0;
     this.countShown = null;
     this.frames = 0;
@@ -199,13 +196,12 @@ export class Renderer {
       <div data-v="team" style="position:absolute;left:18px;top:14px;display:flex;flex-direction:column;gap:10px"></div>
       <div data-v="timer" style="position:absolute;left:50%;top:18px;translate:-50% 0;display:flex;gap:4px"></div>
       <img data-v="robot" alt="" style="position:absolute;right:20px;top:72px;width:64px;image-rendering:pixelated">
-      <div data-v="labels"></div>`;
+      <div data-v="labels"></div>
+      <div data-v="pops"></div>`;
     host.appendChild(el);
     this.overlay = el;
     this.ui = Object.fromEntries([...el.querySelectorAll('[data-v]')].map((n) => [n.dataset.v, n]));
     this.ui.robot.src = artURL(ROBOT);
-    this.heartURL = artURL(HEART, 5);
-    this.heartEmptyURL = artURL(HEART_EMPTY, 5);
     this.cubeURL = artURL(CUBE, 6);
     this.flagURL = artURL(FLAG, 8);
     this.timerCells = Array.from({ length: 20 }, () => {
@@ -345,7 +341,7 @@ export class Renderer {
           return m;
         });
         this.scene.add(wireGroup);
-        // Versus: who the tower belongs to, its hearts and blocks, under the island.
+        // Versus: who the tower belongs to and how tall it is, under the island.
         let label = null;
         if (view.mode === 'versus') {
           label = document.createElement('div');
@@ -366,13 +362,13 @@ export class Renderer {
       v.group.position.set(wx(t.x), wy(PLATFORM.y + PLATFORM.height / 2), 0);
       this.drawForce(t, v, view);
       v.group.visible = true;
-      v.group.traverse((o) => { if (o.material && !Array.isArray(o.material)) o.material.opacity = o.material.transparent ? (t.out ? 0.2 : o.material.opacity) : 1; });
+      v.group.traverse((o) => { if (o.material && !Array.isArray(o.material)) o.material.opacity = o.material.transparent ? o.material.opacity : 1; });
 
       const hb = t.hanging;
-      const live = !t.out && view.phase === 'playing';
+      const live = view.phase === 'playing';
       const span = (t.width * (t.swing || 0.6) + 90) / S;
       const y = wy(t.wireY);
-      v.wireGroup.visible = !t.out;
+      v.wireGroup.visible = true;
       v.wire.position.set(wx(t.x), y, 0);
       v.wire.scale.x = span * 2;
       v.posts[0].position.set(wx(t.x) - span, y, 0);
@@ -435,12 +431,11 @@ export class Renderer {
 
       if (v.label) {
         const who = this.artOf(t.seats[0]);
-        const ready = !t.out && view.phase === 'playing' && t.charge <= 0 ? t.nextForce : '';
-        const labelKey = `${t.hearts}:${t.score}:${t.out}:${ready}`;
+        const ready = view.phase === 'playing' && t.charge <= 0 ? t.nextForce : '';
+        const labelKey = `${t.score}:${ready}`;
         if (labelKey !== v.labelKey) {
           v.labelKey = labelKey;
-          const hearts = Array.from({ length: HEARTS }, (_, i) => `<img src="${i < t.hearts ? this.heartURL : this.heartEmptyURL}" style="width:22px;image-rendering:pixelated">`).join('');
-          v.label.innerHTML = `${who ? `<img src="${artURL(who, 3)}" style="width:32px;image-rendering:pixelated;opacity:${t.out ? 0.4 : 1}">` : ''}${hearts}<img src="${this.cubeURL}" style="width:20px;image-rendering:pixelated;margin-left:4px">${t.score}${
+          v.label.innerHTML = `${who ? `<img src="${artURL(who, 3)}" style="width:32px;image-rendering:pixelated">` : ''}<img src="${this.cubeURL}" style="width:20px;image-rendering:pixelated;margin-left:4px">${t.score}${
             ready ? `<img src="${artURL(FORCE_ART[ready], 3)}" style="width:30px;image-rendering:pixelated;margin-left:6px;filter:drop-shadow(0 0 6px #7fd8ff)">` : ''}`;
           v.label.style.boxShadow = `0 0 0 3px ${this.colorOf(t.seats[0])}`;
         }
@@ -454,7 +449,7 @@ export class Renderer {
   // Wind or an earthquake on this tower: its picture bobs over the tower as a warning
   // (with the sender's animal in the tower race), then wind streaks blow across.
   drawForce(t, v, view) {
-    const f = t.out ? null : t.force;
+    const f = t.force;
     const warnKey = f && !f.on ? `${f.kind}:${view.mode === 'versus' ? f.from : ''}` : '';
     if (warnKey !== v.warnKey) {
       v.warnKey = warnKey;
@@ -554,7 +549,7 @@ export class Renderer {
   drawHud(view) {
     const team = view.mode === 'team' ? view.towers[0] : null;
     const turn = team?.hanging?.seat ?? null;
-    const key = JSON.stringify([view.mode, team?.hearts, team?.score, view.goal, team?.seats, turn]);
+    const key = JSON.stringify([view.mode, team?.score, view.goal, team?.seats, turn]);
     if (key !== this.hudKey) {
       this.hudKey = key;
       if (team) {
@@ -564,10 +559,8 @@ export class Renderer {
           const on = seat === turn;
           return `<img src="${artURL(art, 4)}" style="width:${on ? 56 : 38}px;image-rendering:pixelated;filter:drop-shadow(0 0 ${on ? 10 : 0}px ${this.colorOf(seat)});opacity:${on ? 1 : 0.6};${on ? 'animation:bs-hop 0.6s ease-in-out infinite' : ''}">`;
         }).join('');
-        const hearts = Array.from({ length: HEARTS }, (_, i) => `<img src="${i < team.hearts ? this.heartURL : this.heartEmptyURL}" style="width:30px;image-rendering:pixelated">`).join('');
         this.ui.team.innerHTML = `<style>@keyframes bs-hop{50%{transform:translateY(-6px)}}</style>
           <div style="display:flex;gap:8px;align-items:end;min-height:58px">${animals}</div>
-          <div style="display:flex;gap:6px">${hearts}</div>
           <div style="display:flex;gap:10px;align-items:center;font-size:clamp(16px,2vw,26px)"><img src="${this.cubeURL}" style="width:30px;image-rendering:pixelated">${team.score} / ${view.goal}<img src="${this.flagURL}" style="width:34px;image-rendering:pixelated"></div>`;
       } else {
         this.ui.team.innerHTML = '';
@@ -584,10 +577,9 @@ export class Renderer {
       const on = i / this.timerCells.length < share;
       c.style.background = on ? (share < 0.2 ? '#ff3b6b' : '#7d8cff') : 'rgba(125,140,255,0.15)';
     });
-    // Red glow (team): a warning before a force, the force itself, and a flash when a block falls off.
+    // Red glow (team): a warning before a force, and the force itself.
     const warn = f && !f.on ? 0.45 + 0.35 * Math.sin(this.time * 18) : 0;
-    this.flash = Math.max(0, this.flash - this.dt * 2);
-    this.ui.vignette.style.opacity = String(Math.max(warn, this.flash, f?.on ? 0.5 : 0));
+    this.ui.vignette.style.opacity = String(Math.max(warn, f?.on ? 0.5 : 0));
   }
 
   // ---------- effects ----------
@@ -617,9 +609,13 @@ export class Renderer {
         const m = top && this.blocks.get(top.id);
         if (m) m.userData.pop = 1;
         if (t && view.mode === 'team' && t.count + 1 === view.goal) this.shake = 0.3;
+      } else if (ev.type === 'perfect') {
+        // PERFECT! pops up over the block, with a shower of gold sparks.
+        this.burst(wx(ev.x), wy(ev.y), 0.8, '#ffe600', 18, 3, 5, 0.16);
+        this.popText('PERFECT!', wx(ev.x), wy(ev.y) + 0.9, '#ffe600');
       } else if (ev.type === 'lost') {
-        this.flash = 0.9;
-        this.shake = Math.max(this.shake, 0.35);
+        // Just an oops: a little bump and a puff of pieces, no red alarm.
+        this.shake = Math.max(this.shake, 0.15);
         this.burst(wx(ev.x), wy(PLATFORM.y) - 3, 0.5, this.colorOf(ev.seat), 22, 3, 6, 0.24);
       } else if (ev.type === 'drop') {
         const t = view.towers[ev.tower];
@@ -644,6 +640,19 @@ export class Renderer {
         }
       }
     }
+  }
+
+  /** A word that pops up at a point in the world, rises and fades. */
+  popText(text, x, y, color) {
+    const el = document.createElement('div');
+    el.textContent = text;
+    el.style.cssText = `position:absolute;translate:-50% -50%;font-size:clamp(16px,2.4vw,30px);color:${color};text-shadow:0 0 14px ${color},0 3px 0 #160934;white-space:nowrap;transition:transform 0.9s ease-out,opacity 0.9s ease-in;`;
+    const p = new THREE.Vector3(x, y, 0.8).project(this.camera);
+    el.style.left = `${(p.x * 0.5 + 0.5) * this.width}px`;
+    el.style.top = `${(-p.y * 0.5 + 0.5) * this.height}px`;
+    this.ui.pops.appendChild(el);
+    requestAnimationFrame(() => { el.style.transform = 'translateY(-60px) scale(1.15)'; el.style.opacity = '0'; });
+    setTimeout(() => el.remove(), 1000);
   }
 
   // ---------- drawing ----------

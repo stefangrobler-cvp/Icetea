@@ -3,19 +3,22 @@
 //
 // Team mode: everyone takes turns dropping blocks on one shared floating platform,
 // while the computer sends gusts of wind and earthquakes (with a warning first). Stack
-// up to the goal before the time runs out; every block that falls off costs a heart.
-// Versus mode: everyone has their own tower and drops at the same time. Lose all your
-// hearts and you're out; last one standing, or the most blocks when time runs out, wins.
-// Each player has a force button there: a gust of wind or an earthquake that rocks
-// everyone else's tower, then recharges.
+// up to the flag before the time runs out.
+// Versus mode: everyone has their own tower and drops at the same time; the tallest
+// tower when the time runs out wins. Each player has a force button there: a gust of
+// wind or an earthquake that rocks everyone else's tower, then recharges.
+//
+// Nobody is ever knocked out: a block that falls off is just an "oops" (and lost time).
+// To keep it friendly, blocks that have settled lock in place (only the top few stay
+// wobbly), and a helper nudges a nearly-right drop over the tower on the easier levels.
 //
 // Blocks are plain bars ('classic') or shapes of 2-4 cubes that can be turned before
 // dropping ('shapes'). With shapes, the team builds up to a height instead of a count.
 
 import Matter from './vendor/matter.js';
 import {
-  WORLD, PLATFORM, BLOCK, WIRE_GAP, HANG, HEARTS, COUNTDOWN, AUTO_DROP, LOST_BELOW,
-  NUDGE, BOOST, DIFFICULTIES, VERSUS_TIME, CELL, SHAPES, SHAPE_SETS, SHAPE_BOOST, SHAPE_GOAL, FORCE,
+  WORLD, PLATFORM, BLOCK, WIRE_GAP, HANG, COUNTDOWN, AUTO_DROP, LOST_BELOW,
+  NUDGE, BOOST, ASSIST, LOCK, PERFECT, DIFFICULTIES, VERSUS_TIME, CELL, SHAPES, SHAPE_SETS, SHAPE_BOOST, SHAPE_GOAL, FORCE,
 } from './config.js';
 
 const { Engine: Physics, Bodies, Body, Composite, Events, Sleeping } = Matter;
@@ -99,7 +102,7 @@ export class Engine {
       towers: [],
       blocks: [], // { id, tower, x, y, angle, w, h, color, landed, cells?, size? }
       cameraTop: 0,
-      cpuForceIn: mode === 'team' ? this.settings.glitchEvery : Infinity, // team: the computer's next force
+      cpuForceIn: mode === 'team' ? FORCE.startAfter[this.difficulty] : Infinity, // team: the computer's next force
       winner: null,
       turn: 0, // team mode: index into towers[0].seats
     };
@@ -124,7 +127,7 @@ export class Engine {
     Composite.add(this.physics.world, platform);
     return {
       index, x, width, seats, side, platform, baseX: x,
-      hearts: HEARTS, out: false, count: 0, height: 0, top: PLATFORM.y,
+      count: 0, height: 0, top: PLATFORM.y,
       hanging: null, // { w, h, color, seat, offset, phase, waited, cells?, size?, turns }
       force: null, // a force rocking this tower: { kind, from, warn, left, t, dir, power }
       windX: 0, // how far the wind is blowing the hanging block right now
@@ -162,7 +165,7 @@ export class Engine {
   rotate(seat) {
     const s = this.state;
     if (this.paused || s.phase !== PHASE.PLAYING || !s.shapes) return false;
-    const tower = s.towers.find((t) => !t.out && t.hanging && t.hanging.seat === seat);
+    const tower = s.towers.find((t) => t.hanging && t.hanging.seat === seat);
     if (!tower) return false;
     const h = tower.hanging;
     if (h.shape === 'square') { h.turns += 1; return true; } // looks the same either way
@@ -177,9 +180,9 @@ export class Engine {
     const s = this.state;
     if (this.paused || s.phase !== PHASE.PLAYING || s.mode !== 'versus') return false;
     const mine = s.towers.find((t) => t.seats[0] === seat);
-    if (!mine || mine.out || mine.charge > 0) return false;
+    if (!mine || mine.charge > 0) return false;
     const kind = mine.nextForce;
-    const targets = s.towers.filter((t) => t !== mine && !t.out && !t.force);
+    const targets = s.towers.filter((t) => t !== mine && !t.force);
     if (!targets.length) return false;
     for (const t of targets) this.startForce(t, kind, seat);
     mine.charge = FORCE.recharge;
@@ -194,7 +197,7 @@ export class Engine {
   drop(seat) {
     const s = this.state;
     if (this.paused || s.phase !== PHASE.PLAYING) return false;
-    const tower = s.towers.find((t) => !t.out && t.hanging && t.hanging.seat === seat);
+    const tower = s.towers.find((t) => t.hanging && t.hanging.seat === seat);
     if (!tower) return false;
     this.release(tower);
     this.pending.push({ type: 'drop', seat, tower: tower.index });
@@ -246,9 +249,23 @@ export class Engine {
     return { x, y: this.wireY(tower) + HANG - (h.cells ? h.top : -h.h / 2) };
   }
 
+  /** Where a dropped block should land: over the top block of the tower (or its middle). */
+  targetX(tower) {
+    const top = this.state.blocks
+      .filter((b) => b.tower === tower.index && b.landed && !b.shrugged && b.id !== tower.falling)
+      .sort((a, b) => a.y - b.y)[0];
+    return top ? top.x : tower.x;
+  }
+
   release(tower) {
     const h = tower.hanging;
-    const { x, y } = this.hangingPos(tower);
+    const { x: swingX, y } = this.hangingPos(tower);
+    // The aiming helper: a drop that's nearly over the tower slides the rest of the way.
+    const target = this.targetX(tower);
+    const boost = this.players[h.seat]?.boost || 0;
+    const help = ASSIST[boost > 0 ? 'easy' : this.difficulty];
+    const off = swingX - target;
+    const x = Math.abs(off) < help.range * tower.width ? swingX - off * help.pull : swingX;
     const id = this.nextId++;
     const feel = { friction: 1, frictionStatic: 10, frictionAir: 0.012, restitution: 0, density: 0.0016, slop: 0.02 };
     let body;
@@ -266,7 +283,11 @@ export class Engine {
     body.plugin = { id, tower: tower.index, seat: h.seat };
     Composite.add(this.physics.world, body);
     this.bodies.set(id, body);
-    const block = { id, tower: tower.index, seat: h.seat, x, y, angle: 0, w: h.w, h: h.h, color: h.color, landed: false };
+    const block = {
+      id, tower: tower.index, seat: h.seat, x, y, angle: 0, w: h.w, h: h.h, color: h.color, landed: false,
+      perfect: Math.abs(off) < PERFECT, // dropped right on top (before any help)
+      calm: 0, locked: false,
+    };
     if (h.cells) Object.assign(block, { cells: h.cells, size: h.size, shape: h.shape });
     this.state.blocks.push(block);
     tower.hanging = null;
@@ -286,6 +307,7 @@ export class Engine {
         block.landed = true;
         const power = Math.min(1, body.speed / 14);
         this.pending.push({ type: 'land', seat: block.seat, tower: block.tower, power, x: body.position.x, y: block.cells ? body.bounds.max.y : body.position.y + block.h / 2 });
+        if (block.perfect) this.pending.push({ type: 'perfect', seat: block.seat, tower: block.tower, x: body.position.x, y: body.position.y });
       }
     }
   }
@@ -312,7 +334,6 @@ export class Engine {
     this.updateForces(dt);
 
     for (const t of s.towers) {
-      if (t.out) continue;
       if (t.hanging) {
         t.hanging.phase += t.hanging.speed * dt;
         t.hanging.waited += dt;
@@ -338,6 +359,7 @@ export class Engine {
     }
 
     this.syncBlocks();
+    this.lockSettled(dt);
     for (const t of s.towers) this.checkFalling(t, dt);
     this.countTowers();
     this.updateCamera(dt);
@@ -399,20 +421,50 @@ export class Engine {
         tower.spawnIn = 0.4;
         this.nextTurn();
       }
-      if (tower.out || s.phase !== PHASE.PLAYING) continue;
-      tower.hearts = Math.max(0, tower.hearts - 1);
+      if (s.phase !== PHASE.PLAYING) continue;
       this.pending.push({ type: 'lost', seat: b.seat, tower: tower.index, x: b.x });
-      if (tower.hearts === 0 && s.mode === 'versus') {
-        tower.out = true;
-        tower.hanging = null;
-        this.pending.push({ type: 'out', seat: tower.seats[0], tower: tower.index });
-      }
+    }
+  }
+
+  /**
+   * Blocks that have sat still for a moment lock in place, except the top few of each
+   * tower, so a wobble at the top never brings the whole tower down. Locked blocks
+   * ride along when the island shakes.
+   */
+  lockSettled(dt) {
+    const quarter = Math.PI / 2;
+    for (const t of this.state.towers) {
+      const mine = this.state.blocks.filter((b) => b.tower === t.index && b.landed && !b.shrugged && b.id !== t.falling).sort((a, b) => a.y - b.y);
+      mine.forEach((b, i) => {
+        if (b.locked) return;
+        const body = this.bodies.get(b.id);
+        const still = body.speed < LOCK.speed && Math.abs(body.angularVelocity) < LOCK.spin;
+        b.calm = still ? b.calm + dt : 0;
+        const level = Math.round(body.angle / quarter) * quarter;
+        const tilted = Math.abs(body.angle - level) > LOCK.tilt;
+        if (tilted && b.calm >= LOCK.shrug) {
+          // Stuck leaning at a slant: tip it off, so the top of the tower stays flat
+          // (one "oops", instead of every next block sliding down the slope).
+          const away = Math.sign(body.position.x - t.platform.position.x) || 1;
+          b.shrugged = true;
+          body.collisionFilter = { ...body.collisionFilter, mask: 0 };
+          Body.setVelocity(body, { x: away * 5, y: -2 });
+          Body.setAngularVelocity(body, away * 0.08);
+          return;
+        }
+        // Lower blocks lying flat lock (and click straight as they do).
+        if (tilted || i < LOCK.loose || b.calm < LOCK.after) return;
+        Body.setAngle(body, level);
+        Body.setStatic(body, true);
+        b.locked = true;
+        b.lockDx = body.position.x - t.platform.position.x;
+      });
     }
   }
 
   countTowers() {
     for (const t of this.state.towers) {
-      const mine = this.state.blocks.filter((b) => b.tower === t.index && b.landed && b.id !== t.falling);
+      const mine = this.state.blocks.filter((b) => b.tower === t.index && b.landed && !b.shrugged && b.id !== t.falling);
       t.count = mine.length;
       // Highest point of the tower (blocks are drawn from their centre).
       t.top = Math.min(PLATFORM.y, ...mine.map((b) => (b.cells ? this.bodies.get(b.id).bounds.min.y - 6 : b.y - b.h * 0.7)));
@@ -430,7 +482,7 @@ export class Engine {
   }
 
   startForce(tower, kind, from) {
-    if (tower.out || tower.force) return;
+    if (tower.force) return;
     tower.force = { kind, from, warn: FORCE.warn, left: 0, t: 0, dir: this.rng() < 0.5 ? -1 : 1, power: this.forcePower(tower) };
     this.pending.push({ type: 'force-warn', kind, from, tower: tower.index });
   }
@@ -447,7 +499,7 @@ export class Engine {
       }
     }
     for (const t of s.towers) {
-      if (s.mode === 'versus' && !t.out) t.charge = Math.max(0, t.charge - dt);
+      if (s.mode === 'versus') t.charge = Math.max(0, t.charge - dt);
       const f = t.force;
       t.windX = 0;
       if (!f) continue;
@@ -464,13 +516,24 @@ export class Engine {
       }
       f.left -= dt;
       if (f.kind === 'wind') t.windX = f.dir * FORCE.windSwing * f.power * this.gust(f);
-      if (f.left <= 0 || t.out) {
+      if (f.left <= 0) {
         t.force = null;
         t.windX = 0;
         Body.setPosition(t.platform, { x: t.baseX, y: t.platform.position.y });
         Body.setVelocity(t.platform, { x: 0, y: 0 });
         t.x = t.baseX;
+        this.moveLocked(t, 0);
       }
+    }
+  }
+
+  /** Locked blocks move with their island (dx: how far it just moved). */
+  moveLocked(t, dx) {
+    for (const b of this.state.blocks) {
+      if (b.tower !== t.index || !b.locked) continue;
+      const body = this.bodies.get(b.id);
+      Body.setPosition(body, { x: t.platform.position.x + b.lockDx, y: body.position.y });
+      Body.setVelocity(body, { x: dx, y: 0 });
     }
   }
 
@@ -491,6 +554,7 @@ export class Engine {
         Body.setPosition(t.platform, { x, y: t.platform.position.y });
         Body.setVelocity(t.platform, { x: dx, y: 0 });
         t.x = x;
+        this.moveLocked(t, dx);
       } else {
         // The wind pushes every block on the tower sideways, harder the higher it is
         // (the top of a tall tower sways; the bottom stays put).
@@ -498,7 +562,7 @@ export class Engine {
         for (const b of this.state.blocks) {
           if (b.tower !== t.index) continue;
           const body = this.bodies.get(b.id);
-          if (!body) continue;
+          if (!body || b.locked) continue;
           const up = Math.max(0, PLATFORM.y - body.position.y) / BLOCK.height;
           const lift = Math.min(FORCE.windTop, 0.4 + up * FORCE.windRise);
           Body.applyForce(body, body.position, { x: push * lift * body.mass, y: 0 });
@@ -521,15 +585,12 @@ export class Engine {
     if (s.mode === 'team') {
       const t = s.towers[0];
       if (this.score(t) >= s.goal && !t.falling) winner = 'team';
-      else if (t.hearts === 0 || s.time <= 0) winner = 'cpu';
-    } else {
-      const alive = s.towers.filter((t) => !t.out);
-      if (alive.length <= 1) winner = alive[0]?.side ?? null;
-      else if (s.time <= 0) {
-        const best = Math.max(...alive.map((t) => this.score(t)));
-        const top = alive.filter((t) => this.score(t) === best);
-        winner = top.length === 1 ? top[0].side : null;
-      }
+      else if (s.time <= 0) winner = 'cpu';
+    } else if (s.time <= 0) {
+      // The tallest tower wins (a draw if two are equal).
+      const best = Math.max(...s.towers.map((t) => this.score(t)));
+      const top = s.towers.filter((t) => this.score(t) === best);
+      winner = top.length === 1 ? top[0].side : null;
     }
     if (winner === undefined) return;
     s.phase = PHASE.OVER;
@@ -543,10 +604,10 @@ export class Engine {
     return this.state.shapes ? t.height : t.count;
   }
 
-  /** Each side's score: blocks standing (team mode: blocks and hearts lost). */
+  /** Each side's score: how tall its tower is (the computer never scores). */
   scores() {
     const s = this.state;
-    if (s.mode === 'team') return { team: s.towers[0] ? this.score(s.towers[0]) : 0, cpu: HEARTS - (s.towers[0]?.hearts ?? HEARTS) };
+    if (s.mode === 'team') return { team: s.towers[0] ? this.score(s.towers[0]) : 0, cpu: 0 };
     return Object.fromEntries(s.towers.map((t) => [t.side, this.score(t)]));
   }
 
@@ -556,7 +617,7 @@ export class Engine {
     return {
       ...s,
       towers: s.towers.map((t) => ({
-        index: t.index, x: t.x, width: t.width, seats: t.seats, side: t.side, hearts: t.hearts, out: t.out, count: t.count,
+        index: t.index, x: t.x, width: t.width, seats: t.seats, side: t.side, count: t.count,
         height: t.height, score: this.score(t),
         wireY: this.wireY(t),
         force: t.force ? { kind: t.force.kind, from: t.force.from, warn: t.force.warn, on: t.force.warn <= 0, dir: t.force.dir, gust: t.force.warn > 0 ? 0 : this.gust(t.force) } : null,
