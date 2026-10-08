@@ -16,18 +16,32 @@ import { pointer } from './pointer.js';
 const CONTROLS = { swipe, aim, tap, tilt, pads, pointer };
 
 /**
- * Build a layout (one or two controls side by side) inside `container`.
+ * Build a layout (one or two controls side by side, plus small buttons in a row
+ * underneath) inside `container`.
  * ctx = { send(controlId, value, reliable?), values: {} }   (values persist between layouts)
  */
 export function mountLayout(container, controls, params, ctx) {
   container.replaceChildren();
   // Tilt rails and sideways swipe pads are wide: stack the controls instead of side by side.
   const wide = (c) => c.control === 'tilt' || (c.control === 'swipe' && c.direction === 'horizontal');
-  container.className = controls.length > 1 && controls.some(wide) ? 'zones stacked' : 'zones';
+  const small = controls.filter((c) => c.size === 'small');
+  const main = controls.filter((c) => c.size !== 'small');
+  container.className = main.length > 1 && main.some(wide) ? 'zones stacked' : 'zones';
+  // Small buttons go in a row under the main control(s).
+  let mainArea = container;
+  let row = null;
+  if (small.length) {
+    container.className = 'zones stacked with-row';
+    mainArea = document.createElement('div');
+    mainArea.className = main.length > 1 && main.some(wide) ? 'zones-main stacked' : 'zones-main';
+    row = document.createElement('div');
+    row.className = 'zones-row';
+    container.append(mainArea, row);
+  }
   const parts = controls.map((spec) => {
     const make = CONTROLS[spec.control];
     const el = document.createElement('div');
-    container.appendChild(el);
+    (spec.size === 'small' ? row : mainArea).appendChild(el);
     if (!make) {
       el.textContent = `Unknown control: ${spec.control}`;
       return { el, update() {}, destroy() {} };

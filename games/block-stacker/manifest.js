@@ -16,6 +16,15 @@ export const manifest = {
   ],
   options: [
     {
+      id: 'blocks',
+      label: 'Blocks',
+      choices: [
+        { id: 'classic', icon: '🧊', label: 'Classic' },
+        { id: 'shapes', icon: '🧩', label: 'Shapes' },
+      ],
+      default: 'classic',
+    },
+    {
       id: 'difficulty',
       label: 'Difficulty',
       choices: [
@@ -27,12 +36,29 @@ export const manifest = {
       changeWhilePaused: true,
     },
   ],
+  // The big button drops your block. Shapes add a small turn button; the tower race
+  // adds a force button (wind or earthquake for everyone else's tower).
   layouts: {
     play: [{ control: 'tap', id: 'drop', label: '🧊' }],
+    shapes: [
+      { control: 'tap', id: 'drop', label: '🧊' },
+      { control: 'tap', id: 'turn', label: '🔄', size: 'small' },
+    ],
+    race: [
+      { control: 'tap', id: 'drop', label: '🧊' },
+      { control: 'tap', id: 'force', label: '💨', size: 'small' },
+    ],
+    'race-shapes': [
+      { control: 'tap', id: 'drop', label: '🧊' },
+      { control: 'tap', id: 'turn', label: '🔄', size: 'small' },
+      { control: 'tap', id: 'force', label: '💨', size: 'small' },
+    ],
   },
   howTo: [
     { icon: '👆', text: 'Tap to drop your block' },
     { icon: '👀', text: 'Wait till it swings over the tower' },
     { icon: '🏁', text: 'Stack up to the flag. Don\'t let blocks fall!' },
+    { icon: '🔄', text: 'Shapes: turn them to fit' },
+    { icon: '💨', text: 'Tower race: blow or shake the other towers' },
   ],
 };

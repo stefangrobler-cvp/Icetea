@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Engine, PHASE } from '../games/block-stacker/engine.js';
-import { HEARTS, DIFFICULTIES, PLATFORM } from '../games/block-stacker/config.js';
+import { Engine, PHASE, FORCES, shapeLayout, turnCells } from '../games/block-stacker/engine.js';
+import { HEARTS, DIFFICULTIES, PLATFORM, FORCE, SHAPES, SHAPE_SETS, SHAPE_GOAL, CELL } from '../games/block-stacker/config.js';
 
 // Block Stacker's own rules and physics, tested without any platform.
 
@@ -84,14 +84,20 @@ test('block-stacker: blocks dropped off the platform cost hearts, and the comput
   assert.equal(e.state.winner, 'cpu');
 });
 
-test('block-stacker: the computer warns before every glitch shake', () => {
+test('block-stacker: the computer warns before every force, and sends both wind and earthquakes', () => {
   const e = new Engine({ rng: seeded(5) });
   e.setDifficulty('hard');
   e.startMatch('team', team([1]));
-  const events = run(e, 40, careful);
-  const types = events.map((ev) => ev.type).filter((t) => t === 'warn' || t === 'glitch');
-  assert.ok(types.length >= 2);
-  types.forEach((t, i) => assert.equal(t, i % 2 === 0 ? 'warn' : 'glitch'));
+  const events = run(e, 120, careful);
+  const forces = events.filter((ev) => ev.type === 'force-warn' || ev.type === 'force');
+  assert.ok(forces.length >= 4);
+  forces.forEach((ev, i) => {
+    assert.equal(ev.type, i % 2 === 0 ? 'force-warn' : 'force');
+    assert.equal(ev.from, 'cpu');
+    if (i % 2) assert.equal(ev.kind, forces[i - 1].kind, 'the warning shows what is coming');
+  });
+  const kinds = new Set(forces.map((ev) => ev.kind));
+  assert.ok(kinds.has('wind') && kinds.has('quake'));
 });
 
 test('block-stacker: running out of time loses for the team', () => {
@@ -206,11 +212,176 @@ test('block-stacker: a kid joining a team game gets a turn', () => {
   assert.equal(v.addPlayer(3), false, 'tower race: wait for the next game');
 });
 
-test('block-stacker: the platform stays where it was after a glitch', () => {
+test('block-stacker: the platform stays where it was after an earthquake', () => {
   const e = new Engine({ rng: seeded(13) });
   e.setDifficulty('hard');
   e.startMatch('team', team([1]));
   run(e, 3 + DIFFICULTIES.hard.glitchEvery + 5);
   assert.equal(Math.round(e.state.towers[0].platform.position.x), 800);
   assert.equal(Math.round(e.state.towers[0].platform.position.y), PLATFORM.y + PLATFORM.height / 2);
+});
+
+// ---------- shapes ----------
+
+// A thoughtful player with shapes: turns the shape flat side down, then drops over the middle.
+function thoughtful(e) {
+  for (const t of e.view().towers) {
+    const h = t.hanging;
+    if (!h) continue;
+    const real = e.state.towers[t.index].hanging;
+    if (real.plan === undefined) {
+      let best = 0;
+      let bestTurn = 0;
+      let grid = real.grid;
+      for (let k = 0; k < 4; k++) {
+        const lay = shapeLayout(grid, h.size);
+        const low = Math.max(...lay.cells.map((c) => c.y));
+        const flat = lay.cells.filter((c) => c.y > low - 1).length * 10 - lay.h / h.size;
+        if (flat > best) { best = flat; bestTurn = k; }
+        grid = turnCells(grid);
+      }
+      real.plan = bestTurn;
+    }
+    if (real.turns < real.plan) e.rotate(h.seat);
+    else if (Math.abs(h.x - t.x) < 8) e.drop(h.seat);
+  }
+}
+
+test('block-stacker: a shape\'s cubes sit round its middle, and a turn is a clockwise quarter turn', () => {
+  const lay = shapeLayout(SHAPES.bar3, 50);
+  assert.deepEqual(lay.cells.map((c) => [c.x, c.y]), [[-50, 0], [0, 0], [50, 0]]);
+  assert.equal(lay.w, 150);
+  assert.equal(lay.h, 50);
+  assert.equal(lay.top, -25);
+  assert.deepEqual(turnCells(SHAPES.bar3), [[0, 0], [0, 1], [0, 2]], 'a lying bar stands up');
+  // Four turns bring every shape back as it was.
+  for (const [name, grid] of Object.entries(SHAPES)) {
+    const back = turnCells(turnCells(turnCells(turnCells(grid))));
+    assert.deepEqual([...back].sort(), [...grid].sort(), name);
+  }
+  // The corner's top-left cube turns to the top-right.
+  assert.deepEqual(turnCells([[0, 0], [0, 1], [1, 1]]).sort(), [[0, 0], [0, 1], [1, 0]].sort());
+});
+
+test('block-stacker: shapes - the player whose turn it is can turn their shape, nobody else', () => {
+  const e = new Engine({ rng: seeded(21) });
+  e.startMatch('team', team([1, 2]), { blocks: 'shapes' });
+  assert.equal(e.rotate(1), false, 'not during the countdown');
+  run(e, 3.1);
+  const h = e.state.towers[0].hanging;
+  assert.ok(SHAPE_SETS.easy.includes(h.shape));
+  assert.equal(h.cells.length, SHAPES[h.shape].length);
+  const before = JSON.stringify(h.grid);
+  assert.equal(e.rotate(2), false, 'not your turn');
+  assert.equal(e.rotate(1), true);
+  assert.equal(h.turns, 1);
+  if (h.shape !== 'square') assert.notEqual(JSON.stringify(h.grid), before);
+  e.drop(1);
+  const events = run(e, 4);
+  const block = e.state.blocks[0];
+  assert.ok(block.cells && block.landed, 'the shape landed as one piece');
+  assert.ok(events.some((ev) => ev.type === 'land' && ev.seat === 1));
+  const classic = new Engine({ rng: seeded(21) });
+  classic.startMatch('team', team([1]));
+  run(classic, 3.1);
+  assert.equal(classic.rotate(1), false, 'classic blocks don\'t turn');
+});
+
+test('block-stacker: shapes - a shape dropped on the platform settles instead of flying off', () => {
+  for (const shape of Object.keys(SHAPES)) {
+    const e = new Engine({ rng: seeded(22) });
+    e.startMatch('team', team([1]), { blocks: 'shapes' });
+    run(e, 3.1);
+    const h = e.state.towers[0].hanging;
+    h.shape = shape;
+    e.setShape(h, SHAPES[shape]);
+    run(e, 5, (eng) => { const t = eng.view().towers[0]; if (t.hanging && Math.abs(t.hanging.x - t.x) < 8) eng.drop(1); });
+    const first = e.state.blocks[0];
+    assert.ok(Math.abs(first.x - 800) < PLATFORM.width / 2, `${shape} stays on the platform`);
+    assert.ok(first.y < PLATFORM.y, `${shape} rests on top`);
+  }
+});
+
+test('block-stacker: shapes - thoughtful stacking builds up to the flag on easy', () => {
+  const every = DIFFICULTIES.easy.glitchEvery;
+  try {
+    DIFFICULTIES.easy.glitchEvery = 9999; // judge the stacking itself
+    let wins = 0;
+    for (let seed = 1; seed <= 4; seed++) {
+      const e = new Engine({ rng: seeded(seed) });
+      e.startMatch('team', team([1]), { blocks: 'shapes' });
+      assert.equal(e.state.goal, SHAPE_GOAL.easy);
+      assert.equal(e.state.goalY, PLATFORM.y - SHAPE_GOAL.easy * CELL);
+      run(e, 200, thoughtful);
+      if (e.state.winner === 'team') {
+        wins += 1;
+        assert.ok(e.state.towers[0].height >= SHAPE_GOAL.easy);
+      }
+    }
+    assert.ok(wins >= 3, `won ${wins} of 4`);
+  } finally {
+    DIFFICULTIES.easy.glitchEvery = every;
+  }
+});
+
+test('block-stacker: shapes - players with help only get the easy shapes, a bit bigger', () => {
+  const e = new Engine({ rng: seeded(23) });
+  e.startMatch('versus', [{ seat: 1, side: 'p1', boost: 2 }, { seat: 2, side: 'p2' }], { blocks: 'shapes' });
+  run(e, 3.1);
+  for (let i = 0; i < 20; i++) {
+    e.spawn(e.state.towers[0]);
+    assert.ok(SHAPE_SETS.helped.includes(e.state.towers[0].hanging.shape));
+  }
+  assert.ok(e.state.towers[0].hanging.size > e.state.towers[1].hanging.size);
+});
+
+// ---------- forces ----------
+
+test('block-stacker: tower race - the force button charges, then rocks everyone else\'s tower', () => {
+  const e = new Engine({ rng: seeded(24) });
+  e.startMatch('versus', [{ seat: 1, side: 'p1' }, { seat: 2, side: 'p2' }, { seat: 3, side: 'p3' }]);
+  run(e, 3.1);
+  assert.equal(e.useForce(1), false, 'still charging');
+  run(e, FORCE.firstCharge);
+  assert.equal(e.view().towers[0].charge, 0);
+  const kind = e.state.towers[0].nextForce;
+  assert.ok(FORCES.includes(kind));
+  assert.equal(e.useForce(1), true);
+  assert.equal(e.useForce(1), false, 'it has to charge again');
+  assert.equal(e.state.towers[0].charge, FORCE.recharge);
+  assert.equal(e.state.towers[0].force, null, 'not your own tower');
+  for (const t of e.state.towers.slice(1)) assert.equal(t.force.kind, kind);
+  const events = run(e, FORCE.warn + FORCE.last + 0.2);
+  assert.equal(events.filter((ev) => ev.type === 'force' && ev.from === 1).length, 2);
+  assert.ok(e.state.towers.every((t) => !t.force), 'it passes');
+  const team2 = new Engine();
+  team2.startMatch('team', team([1]));
+  run(team2, 3 + FORCE.firstCharge + 1);
+  assert.equal(team2.useForce(1), false, 'team mode: only the computer sends forces');
+});
+
+test('block-stacker: wind pushes the tower\'s blocks and blows the hanging block aside', () => {
+  const e = new Engine({ rng: seeded(25) });
+  e.startMatch('versus', [{ seat: 1, side: 'p1' }, { seat: 2, side: 'p2' }]);
+  run(e, 3.1);
+  e.drop(2);
+  run(e, 3); // player 2's block lands
+  const block = e.state.blocks.find((b) => b.seat === 2);
+  const x0 = block.x;
+  e.startForce(e.state.towers[1], 'wind', 1);
+  const dir = e.state.towers[1].force.dir;
+  run(e, FORCE.warn + FORCE.last * 0.5);
+  assert.ok(Math.abs(e.state.towers[1].windX) > 20, 'the hanging block is blown aside');
+  assert.ok((block.x - x0) * dir > 0.2, 'the landed block was pushed with the wind');
+  run(e, FORCE.last);
+  assert.equal(e.state.towers[1].windX, 0);
+});
+
+test('block-stacker: forces rock a tower with a helped player more gently', () => {
+  const e = new Engine({ rng: seeded(26) });
+  e.startMatch('versus', [{ seat: 1, side: 'p1', boost: 2 }, { seat: 2, side: 'p2' }]);
+  run(e, 3.1);
+  e.startForce(e.state.towers[0], 'quake', 2);
+  e.startForce(e.state.towers[1], 'quake', 1);
+  assert.ok(e.state.towers[0].force.power < e.state.towers[1].force.power);
 });

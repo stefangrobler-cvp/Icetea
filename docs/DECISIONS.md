@@ -2,6 +2,15 @@
 
 Short entries, newest first. Why we chose something, and when to look at it again.
 
+## 2026-10-08: Block Stacker gets Shapes and forces (rule change, owner approved)
+- **What:** a "Blocks: Classic / Shapes" choice (turnable pieces of 2–4 cubes; team goal becomes a
+  height), and forces: wind and earthquakes. The computer sends them in team mode; each player gets a
+  recharging force button in the tower race. Tilt control removed from Block Stacker.
+- **Platform change:** the `tap` control gained `size: 'small'`; a layout may add up to two small tap
+  buttons under its main control. No new control type.
+- **Watch:** Shapes on Medium/Hard and Classic on Hard are tough in simulations; and in the tower race,
+  check that being "hit" by a sibling is fun rather than upsetting. Retune after family play.
+
 ## 2026-10-07: Block Stacker is the third game in the new look
 - **Why:** the owner's children enjoyed it most. Seen from the front in 3D; every block wears the face
   of the child who dropped it. Rules and physics unchanged.

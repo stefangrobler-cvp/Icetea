@@ -19,7 +19,8 @@ export const CONTROLS = {
   // Value while aiming: { angle }. When let go: { angle, release: true }.
   aim: { settings: ['id', 'label'] },
   // A giant button. Value: { down: true } when pressed, { down: false } when let go.
-  tap: { settings: ['id', 'label'] },
+  // size 'small': a smaller button in a row under the layout's main control.
+  tap: { settings: ['id', 'label', 'size'], sizes: ['small'] },
   // Tilt the phone left / right (or drag a rail where there's no motion sensor). Value: -1 .. 1.
   tilt: { settings: ['id', 'label'] },
   // 2-4 big pads in fixed colours (cyan, pink, yellow, green). Value: { pad, down: true|false }.
@@ -87,13 +88,15 @@ export function validateManifest(m) {
     if (!opt?.choices?.some((c) => c.id === opt.default)) err(`${where}: default must be one of the choices`);
   }
 
-  // Phone layouts: one or two controls from the kit, side by side.
+  // Phone layouts: one or two controls from the kit, side by side, plus up to two
+  // small tap buttons in a row underneath.
   const layouts = m.layouts && typeof m.layouts === 'object' ? Object.entries(m.layouts) : [];
   if (layouts.length === 0) err('at least one phone layout is required');
   for (const [name, controls] of layouts) {
     const where = `layout "${name}"`;
-    if (!Array.isArray(controls) || controls.length < 1 || controls.length > 2) {
-      err(`${where}: needs one or two controls`);
+    const main = Array.isArray(controls) ? controls.filter((c) => c?.size !== 'small').length : 0;
+    if (!Array.isArray(controls) || main < 1 || main > 2 || controls.length - main > 2) {
+      err(`${where}: needs one or two controls (plus up to two small buttons)`);
       continue;
     }
     for (const c of controls) {
@@ -104,6 +107,7 @@ export function validateManifest(m) {
         if (key !== 'control' && !kind.settings.includes(key)) err(`${where}: ${c.control} has no setting "${key}"`);
       }
       if (c.look && !kind.looks?.includes(c.look)) err(`${where}: ${c.control} has no look "${c.look}"`);
+      if (c.size && !kind.sizes?.includes(c.size)) err(`${where}: ${c.control} has no size "${c.size}"`);
       if (c.direction && !kind.directions?.includes(c.direction)) err(`${where}: ${c.control} has no direction "${c.direction}"`);
       if (c.control === 'pads' && c.pads !== undefined && !(Number.isInteger(c.pads) && c.pads >= 2 && c.pads <= 4)) err(`${where}: pads must be 2, 3 or 4`);
     }

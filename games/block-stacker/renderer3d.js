@@ -8,7 +8,7 @@
 // on a screen without 3D: players, handleEvents(events, view), draw(view, dt), destroy().
 
 import THREE from './vendor/three.js';
-import { WORLD, PLATFORM, BLOCK, HEARTS, COLORS } from './config.js';
+import { WORLD, PLATFORM, HEARTS, COLORS } from './config.js';
 
 const S = 80;
 const DEPTH = 1.0; // how deep the blocks are (the physics is flat; this is just for looks)
@@ -31,6 +31,11 @@ const DIGITS = {
   6: ['111', '100', '111', '101', '111'], 7: ['111', '001', '010', '010', '010'], 8: ['111', '101', '111', '101', '111'], 9: ['111', '101', '111', '001', '111'],
 };
 const SPARKS = ['#00f0ff', '#ff2bd6', '#39ff7a', '#ff9f1c', '#ffe600'];
+// Forces: a gust of wind and an earthquake (same pictures as the phone buttons).
+const FORCE_ART = {
+  wind: { rows: ['......uu..', '........u.', 'uuuuuuuuu.', '..........', '.wwwwwwwww', '..........', 'uuuuuuu...', '.......u..', '.....uu...'], palette: { u: '#7fd8ff', w: '#f4f2ff' } },
+  quake: { rows: ['m.......m', '.m.....m.', '.........', 'nnnnynnnn', 'nnnyynnnn', 'NNNNyyNNN', 'nnnnnynnn', 'nnnnyynnn'], palette: { m: '#ff2bd6', N: '#6b4129', n: '#9a6440', y: '#ffe600' } },
+};
 
 const rnd = (() => { let s = 23; return () => ((s = (s * 16807) % 2147483647) / 2147483647); })();
 
@@ -193,7 +198,7 @@ export class Renderer {
       <div data-v="vignette" style="position:absolute;inset:0;opacity:0;background:radial-gradient(ellipse at center, rgba(255,40,80,0) 45%, rgba(255,40,80,0.75) 100%)"></div>
       <div data-v="team" style="position:absolute;left:18px;top:14px;display:flex;flex-direction:column;gap:10px"></div>
       <div data-v="timer" style="position:absolute;left:50%;top:18px;translate:-50% 0;display:flex;gap:4px"></div>
-      <img data-v="robot" alt="" style="position:absolute;right:20px;top:14px;width:64px;image-rendering:pixelated">
+      <img data-v="robot" alt="" style="position:absolute;right:20px;top:72px;width:64px;image-rendering:pixelated">
       <div data-v="labels"></div>`;
     host.appendChild(el);
     this.overlay = el;
@@ -222,8 +227,8 @@ export class Renderer {
 
   // ---------- blocks: neon boxes wearing their builder's animal on the front ----------
 
-  faceMaterial(seat, w, h, color) {
-    const key = `${seat}:${w}:${h}:${color}`;
+  faceMaterial(seat, w, h, color, withArt = true) {
+    const key = `${seat}:${w}:${h}:${color}:${withArt}`;
     if (this.textures.has(key)) return this.textures.get(key);
     const H = 48;
     const W = Math.round((H * w) / h);
@@ -237,7 +242,7 @@ export class Renderer {
     x.fillRect(3, 3, W - 6, H - 6);
     x.fillStyle = 'rgba(255,255,255,0.35)';
     x.fillRect(0, 0, W, 3);
-    const art = this.artOf(seat);
+    const art = withArt ? this.artOf(seat) : null;
     if (art) {
       const cell = Math.floor((H - 10) / art.rows.length);
       paint(x, art, Math.round(W / 2 - (art.rows[0].length * cell) / 2), Math.round(H / 2 - (art.rows.length * cell) / 2), cell);
@@ -264,18 +269,43 @@ export class Renderer {
     return m;
   }
 
+  /** A shape: one cube per cell around its middle; the animal rides the middle cube. */
+  makeShape(seat, cells, size, color) {
+    const g = new THREE.Group();
+    const side = this.mat(color, { emissive: color, emissiveIntensity: 0.4 });
+    const top = this.mat(color, { emissive: color, emissiveIntensity: 0.7 });
+    const middle = cells.reduce((best, c) => (Math.hypot(c.x, c.y) < Math.hypot(best.x, best.y) ? c : best));
+    for (const c of cells) {
+      const face = this.faceMaterial(seat, size, size, color, c === middle);
+      const m = new THREE.Mesh(this.unit, [side, side, top, side, face, side]);
+      m.scale.set((size / S) * 0.98, (size / S) * 0.98, DEPTH);
+      m.position.set(c.x / S, -c.y / S, 0);
+      m.castShadow = true;
+      m.receiveShadow = true;
+      g.add(m);
+    }
+    g.userData.pop = 0;
+    g.userData.shape = true;
+    this.scene.add(g);
+    return g;
+  }
+
   syncBlocks(view) {
     const seen = new Set();
     for (const b of view.blocks) {
       seen.add(b.id);
       let m = this.blocks.get(b.id);
-      if (!m) { m = this.makeBlock(b.seat, b.w, b.h, b.color); this.blocks.set(b.id, m); }
+      if (!m) {
+        m = b.cells ? this.makeShape(b.seat, b.cells, b.size, b.color) : this.makeBlock(b.seat, b.w, b.h, b.color);
+        this.blocks.set(b.id, m);
+      }
       m.position.set(wx(b.x), wy(b.y), 0);
       m.rotation.z = -b.angle;
       // A little squash when it lands.
       m.userData.pop = Math.max(0, m.userData.pop - this.dt * 4);
       const k = Math.sin(m.userData.pop * Math.PI) * 0.12;
-      m.scale.set((b.w / S) * (1 + k), (b.h / S) * (1 - k), DEPTH);
+      if (m.userData.shape) m.scale.set(1 + k, 1 - k, 1);
+      else m.scale.set((b.w / S) * (1 + k), (b.h / S) * (1 - k), DEPTH);
     }
     for (const [id, m] of this.blocks) if (!seen.has(id)) { this.scene.remove(m); this.blocks.delete(id); }
   }
@@ -322,10 +352,19 @@ export class Renderer {
           label.style.cssText = 'position:absolute;translate:-50% 0;display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:6px;background:rgba(22,9,52,0.7);font-size:14px;white-space:nowrap';
           this.ui.labels.appendChild(label);
         }
-        v = { group, wireGroup, key, wire, posts, cable, guide, ring, ringMat, face: null, faceSeat: null, label, labelKey: '' };
+        // Forces: a warning picture over the tower, and streaks for the wind.
+        const streakMat = new THREE.MeshBasicMaterial({ color: '#c9f4ff', transparent: true, opacity: 0 });
+        const streaks = Array.from({ length: 12 }, () => {
+          const m = this.box(1.1, 0.05, 0.05, streakMat, 0, 0, 0.9, wireGroup);
+          m.castShadow = false;
+          m.visible = false;
+          return m;
+        });
+        v = { group, wireGroup, key, wire, posts, cable, guide, ring, ringMat, face: null, faceSeat: null, label, labelKey: '', streaks, streakMat, warn: null, warnKey: '', spin: 0, turns: 0 };
         this.towers.set(t.index, v);
       }
       v.group.position.set(wx(t.x), wy(PLATFORM.y + PLATFORM.height / 2), 0);
+      this.drawForce(t, v, view);
       v.group.visible = true;
       v.group.traverse((o) => { if (o.material && !Array.isArray(o.material)) o.material.opacity = o.material.transparent ? (t.out ? 0.2 : o.material.opacity) : 1; });
 
@@ -344,11 +383,11 @@ export class Renderer {
       if (v.face) v.face.visible = false;
       if (hb && live) {
         const hx = wx(hb.x);
-        const top = wy(hb.y - hb.h / 2);
-        v.cable.position.set(hx, (y + top) / 2, 0);
+        const top = wy(hb.y + (hb.cells ? hb.top : -hb.h / 2));
+        v.cable.position.set(hx + (hb.hook?.x || 0) / S, (y + top) / 2, 0);
         v.cable.scale.y = Math.max(0.05, y - top);
         // Where it will land: dots straight down to the tower top.
-        const bottom = wy(hb.y + hb.h / 2);
+        const bottom = wy(hb.y + (hb.cells ? hb.bottom : hb.h / 2));
         const floor = wy(PLATFORM.y);
         v.guide.forEach((m, i) => {
           const gy = bottom - 0.35 - i * 0.42;
@@ -376,25 +415,33 @@ export class Renderer {
           });
         }
         // The hanging block itself (an engine block only exists once it's dropped).
-        if (!v.hanging || v.hangKey !== `${hb.seat}:${hb.w}`) {
+        // A shape that was just turned spins round into its new place.
+        if (hb.cells && hb.seat === v.hangSeat && hb.turns === v.turns + 1) v.spin = Math.PI / 2;
+        v.turns = hb.turns || 0;
+        const hangKey = hb.cells ? `${hb.seat}:${hb.shape}:${hb.size}:${JSON.stringify(hb.grid)}` : `${hb.seat}:${hb.w}`;
+        if (!v.hanging || v.hangKey !== hangKey) {
           if (v.hanging) this.scene.remove(v.hanging);
-          v.hanging = this.makeBlock(hb.seat, hb.w, hb.h, hb.color);
-          v.hangKey = `${hb.seat}:${hb.w}`;
+          v.hanging = hb.cells ? this.makeShape(hb.seat, hb.cells, hb.size, hb.color) : this.makeBlock(hb.seat, hb.w, hb.h, hb.color);
+          v.hangKey = hangKey;
         }
+        v.hangSeat = hb.seat;
+        v.spin = Math.max(0, v.spin - this.dt * 9);
         v.hanging.visible = true;
         v.hanging.position.set(hx, wy(hb.y), 0);
-        v.hanging.rotation.z = Math.sin(this.time * 3) * 0.04;
+        v.hanging.rotation.z = Math.sin(this.time * 3) * 0.04 + v.spin * v.spin * (2 / Math.PI);
       } else if (v.hanging) {
         v.hanging.visible = false;
       }
 
       if (v.label) {
         const who = this.artOf(t.seats[0]);
-        const labelKey = `${t.hearts}:${t.count}:${t.out}`;
+        const ready = !t.out && view.phase === 'playing' && t.charge <= 0 ? t.nextForce : '';
+        const labelKey = `${t.hearts}:${t.score}:${t.out}:${ready}`;
         if (labelKey !== v.labelKey) {
           v.labelKey = labelKey;
           const hearts = Array.from({ length: HEARTS }, (_, i) => `<img src="${i < t.hearts ? this.heartURL : this.heartEmptyURL}" style="width:22px;image-rendering:pixelated">`).join('');
-          v.label.innerHTML = `${who ? `<img src="${artURL(who, 3)}" style="width:32px;image-rendering:pixelated;opacity:${t.out ? 0.4 : 1}">` : ''}${hearts}<img src="${this.cubeURL}" style="width:20px;image-rendering:pixelated;margin-left:4px">${t.count}`;
+          v.label.innerHTML = `${who ? `<img src="${artURL(who, 3)}" style="width:32px;image-rendering:pixelated;opacity:${t.out ? 0.4 : 1}">` : ''}${hearts}<img src="${this.cubeURL}" style="width:20px;image-rendering:pixelated;margin-left:4px">${t.score}${
+            ready ? `<img src="${artURL(FORCE_ART[ready], 3)}" style="width:30px;image-rendering:pixelated;margin-left:6px;filter:drop-shadow(0 0 6px #7fd8ff)">` : ''}`;
           v.label.style.boxShadow = `0 0 0 3px ${this.colorOf(t.seats[0])}`;
         }
         const p = new THREE.Vector3(wx(t.x), wy(PLATFORM.y) - 2.3, 0.8).project(this.camera);
@@ -402,6 +449,44 @@ export class Renderer {
         v.label.style.top = `${(-p.y * 0.5 + 0.5) * this.height}px`;
       }
     }
+  }
+
+  // Wind or an earthquake on this tower: its picture bobs over the tower as a warning
+  // (with the sender's animal in the tower race), then wind streaks blow across.
+  drawForce(t, v, view) {
+    const f = t.out ? null : t.force;
+    const warnKey = f && !f.on ? `${f.kind}:${view.mode === 'versus' ? f.from : ''}` : '';
+    if (warnKey !== v.warnKey) {
+      v.warnKey = warnKey;
+      if (v.warn) v.wireGroup.remove(v.warn);
+      v.warn = null;
+      if (warnKey) {
+        v.warn = new THREE.Group();
+        v.warn.add(this.sprite(FORCE_ART[f.kind], 1.5));
+        const from = view.mode === 'versus' ? this.artOf(f.from) : null;
+        if (from) {
+          const who = this.sprite(from, 0.8);
+          who.position.set(1.1, 0.35, 0);
+          v.warn.add(who);
+        }
+        v.wireGroup.add(v.warn);
+      }
+    }
+    if (v.warn) {
+      v.warn.position.set(wx(t.x), wy(t.wireY) + 2.0 + Math.sin(this.time * 6) * 0.1, 0.4);
+      v.warn.scale.setScalar(1 + Math.abs(Math.sin(this.time * 10)) * 0.15);
+    }
+    const blowing = f?.on && f.kind === 'wind';
+    v.streakMat.opacity = blowing ? 0.65 * f.gust : 0;
+    const span = (t.width / S) * 1.3;
+    const yTop = wy(t.wireY) - 0.4;
+    const yBottom = wy(PLATFORM.y) + 0.3;
+    v.streaks.forEach((m, i) => {
+      m.visible = Boolean(blowing);
+      if (!blowing) return;
+      const run = ((this.time * 12 + i * 1.37) % (span * 2)) - span;
+      m.position.set(wx(t.x) + f.dir * run, yBottom + ((i * 0.618) % 1) * (yTop - yBottom), 0.9);
+    });
   }
 
   sprite(art, size) {
@@ -429,9 +514,9 @@ export class Renderer {
     const t = view.towers[0];
     this.goal.visible = view.mode === 'team' && Boolean(view.goal) && Boolean(t);
     if (!this.goal.visible) return;
-    const reached = t.count >= view.goal;
+    const reached = t.score >= view.goal;
     this.goalLine.color.set(reached ? '#39ff7a' : COLORS.cpu);
-    const y = wy(PLATFORM.y - view.goal * BLOCK.height);
+    const y = wy(view.goalY);
     const half = (t.width / S) * 0.9;
     this.goal.position.set(wx(t.x), y, 0.4);
     this.goalDots.forEach((m, i) => {
@@ -469,7 +554,7 @@ export class Renderer {
   drawHud(view) {
     const team = view.mode === 'team' ? view.towers[0] : null;
     const turn = team?.hanging?.seat ?? null;
-    const key = JSON.stringify([view.mode, team?.hearts, team?.count, view.goal, team?.seats, turn]);
+    const key = JSON.stringify([view.mode, team?.hearts, team?.score, view.goal, team?.seats, turn]);
     if (key !== this.hudKey) {
       this.hudKey = key;
       if (team) {
@@ -483,14 +568,14 @@ export class Renderer {
         this.ui.team.innerHTML = `<style>@keyframes bs-hop{50%{transform:translateY(-6px)}}</style>
           <div style="display:flex;gap:8px;align-items:end;min-height:58px">${animals}</div>
           <div style="display:flex;gap:6px">${hearts}</div>
-          <div style="display:flex;gap:10px;align-items:center;font-size:clamp(16px,2vw,26px)"><img src="${this.cubeURL}" style="width:30px;image-rendering:pixelated">${team.count} / ${view.goal}<img src="${this.flagURL}" style="width:34px;image-rendering:pixelated"></div>`;
+          <div style="display:flex;gap:10px;align-items:center;font-size:clamp(16px,2vw,26px)"><img src="${this.cubeURL}" style="width:30px;image-rendering:pixelated">${team.score} / ${view.goal}<img src="${this.flagURL}" style="width:34px;image-rendering:pixelated"></div>`;
       } else {
         this.ui.team.innerHTML = '';
       }
     }
     this.ui.robot.hidden = !team;
-    const g = view.glitch || {};
-    const alarm = g.warn > 0 || g.shake > 0;
+    const f = team?.force;
+    const alarm = Boolean(f);
     this.ui.robot.style.transform = alarm ? `rotate(${Math.sin(this.time * 30) * 12}deg) scale(1.15)` : '';
     this.ui.robot.style.filter = alarm ? 'drop-shadow(0 0 12px #ff3b6b)' : 'drop-shadow(0 0 8px #ffe600)';
     // Time left as a row of blocks that go out one by one.
@@ -499,10 +584,10 @@ export class Renderer {
       const on = i / this.timerCells.length < share;
       c.style.background = on ? (share < 0.2 ? '#ff3b6b' : '#7d8cff') : 'rgba(125,140,255,0.15)';
     });
-    // Red glow: a warning before a glitch, the shake itself, and a flash when a block falls off.
-    const warn = g.warn > 0 ? 0.45 + 0.35 * Math.sin(this.time * 18) : 0;
+    // Red glow (team): a warning before a force, the force itself, and a flash when a block falls off.
+    const warn = f && !f.on ? 0.45 + 0.35 * Math.sin(this.time * 18) : 0;
     this.flash = Math.max(0, this.flash - this.dt * 2);
-    this.ui.vignette.style.opacity = String(Math.max(warn, this.flash, g.shake > 0 ? 0.6 : 0));
+    this.ui.vignette.style.opacity = String(Math.max(warn, this.flash, f?.on ? 0.5 : 0));
   }
 
   // ---------- effects ----------
@@ -539,8 +624,16 @@ export class Renderer {
       } else if (ev.type === 'drop') {
         const t = view.towers[ev.tower];
         if (t) this.burst(wx(t.hanging?.x ?? t.x), wy(t.wireY), 0.3, COLORS.wire, 6, 1.2, 2, 0.12);
-      } else if (ev.type === 'glitch') {
-        this.shake = 0.6;
+      } else if (ev.type === 'force') {
+        const t = view.towers[ev.tower];
+        if (ev.kind === 'quake') {
+          this.shake = Math.max(this.shake, 0.6);
+          // Dust and rock bits shaken off the island.
+          if (t) for (const side of [-1, 1]) this.burst(wx(t.x) + side * (t.width / S) * 0.45, wy(PLATFORM.y) - 0.3, 0.6, NIGHT.rock[1], 10, 1.5, 3, 0.16);
+        }
+      } else if (ev.type === 'rotate') {
+        const t = view.towers[ev.tower];
+        if (t?.hanging) this.burst(wx(t.hanging.x), wy(t.hanging.y), 0.8, '#f4f2ff', 6, 1.4, 1.5, 0.1);
       } else if (ev.type === 'win' && ev.winner && ev.winner !== 'cpu') {
         // Fireworks over the winning tower.
         const t = view.mode === 'team' ? view.towers[0] : view.towers.find((x) => x.side === ev.winner);
@@ -596,12 +689,12 @@ export class Renderer {
     for (const s of this.stars) s.m.scale.setScalar(0.07 * (0.5 + 0.6 * Math.abs(Math.sin(this.time * 1.2 + s.ph)))); // twinkle
 
     // Camera: follows the tower up (the engine's cameraTop), a little above and in
-    // front so the tops of the blocks show; shakes on a glitch, a landing or a fall.
+    // front so the tops of the blocks show; shakes in an earthquake, a landing or a fall.
     const target = wy(view.cameraTop + WORLD.height / 2);
     this.camY += (target - this.camY) * Math.min(1, this.dt * 3);
     this.shake = Math.max(0, this.shake - this.dt * 1.5);
-    const glitching = view.glitch?.shake > 0;
-    const sh = this.reduceMotion ? 0 : this.shake * this.shake * 1.2 + (glitching ? 0.06 : 0);
+    const quaking = view.towers.some((t) => t.force?.on && t.force.kind === 'quake');
+    const sh = this.reduceMotion ? 0 : this.shake * this.shake * 1.2 + (quaking ? 0.06 : 0);
     this.camera.position.set((rnd() - 0.5) * sh, this.camY + 1.8 + (rnd() - 0.5) * sh, this.dist);
     this.camera.lookAt(0, this.camY + 0.2, 0);
     this.sun.position.set(-6, this.camY + 14, 12);

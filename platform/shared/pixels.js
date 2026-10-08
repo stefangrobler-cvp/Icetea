@@ -78,6 +78,10 @@ export const ICON_ART = {
   '🏠': ['....w....', '...www...', '..wwwww..', '.wwwwwww.', 'wwwwwwwww', '.ww...ww.', '.ww.y.ww.', '.ww...ww.'],
   '⭐': ['....y....', '....y....', '...yyy...', 'yyyyyyyyy', '.yyyyyyy.', '..yyyyy..', '..yy.yy..', '.yy...yy.'],
   '❓': ['.wwww.', 'ww..ww', '....ww', '...ww.', '..ww..', '......', '..ww..'],
+  '🔄': ['...wwww..', '..w....w.', '.w....www', '.w.....w.', '.w.......', '.w.....w.', '..w...w..', '...www...'],
+  '💨': ['......uu..', '........u.', 'uuuuuuuuu.', '..........', '.wwwwwwwww', '..........', 'uuuuuuu...', '.......u..', '.....uu...'],
+  '🌋': ['m.......m', '.m.....m.', '.........', 'nnnnynnnn', 'nnnyynnnn', 'NNNNyyNNN', 'nnnnnynnn', 'nnnnyynnn'],
+  '🧩': ['cccccc..', 'cccccc..', '..cc..mm', '..cc..mm', 'gggg..mm', 'gggg..mm'],
 };
 
 /** Every grapheme in a string of emoji, e.g. '🧒🧒⚡🤖' -> ['🧒', '🧒', '⚡', '🤖']. */

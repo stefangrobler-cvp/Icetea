@@ -20,7 +20,7 @@ export function makeSounds(audio) {
     osc.stop(t + duration + 0.02);
   }
 
-  function rumble(duration, volume) {
+  function rumble(duration, volume, cutoff = 220, rise = 0) {
     if (!ctx || !out) return;
     const t = ctx.currentTime;
     const buffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * duration), ctx.sampleRate);
@@ -30,9 +30,11 @@ export function makeSounds(audio) {
     src.buffer = buffer;
     const filter = ctx.createBiquadFilter();
     filter.type = 'lowpass';
-    filter.frequency.value = 220;
+    filter.frequency.value = cutoff;
     const gain = ctx.createGain();
-    gain.gain.setValueAtTime(volume, t);
+    // rise: seconds to swell in (a gust of wind), otherwise it starts loud (a thump).
+    gain.gain.setValueAtTime(rise ? 0.0001 : volume, t);
+    if (rise) gain.gain.exponentialRampToValueAtTime(volume, t + rise);
     gain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
     src.connect(filter).connect(gain).connect(out);
     src.start(t);
@@ -46,7 +48,10 @@ export function makeSounds(audio) {
     land: (power = 0.5) => { beep(120 + power * 80, 0.12, 'square', 0.18 + power * 0.12); rumble(0.12, 0.2 * power); },
     lost: () => beep(500, 0.5, 'sawtooth', 0.15, 0, 70),
     warn: () => { beep(880, 0.16, 'square', 0.2); beep(660, 0.16, 'square', 0.2, 0.22); beep(880, 0.16, 'square', 0.2, 0.44); },
-    glitch: () => { rumble(1.1, 0.5); beep(60, 0.9, 'sawtooth', 0.12); },
+    quake: () => { rumble(1.4, 0.5); beep(60, 1.1, 'sawtooth', 0.12); },
+    wind: () => { rumble(1.6, 0.35, 900, 0.6); beep(300, 1.4, 'sine', 0.05, 0, 520); },
+    turn90: () => beep(1200, 0.06, 'triangle', 0.12, 0, 1500),
+    send: () => beep(400, 0.3, 'square', 0.14, 0, 1200),
     win: () => [523, 659, 784, 1047].forEach((f, i) => beep(f, 0.16, 'square', 0.16, i * 0.09)),
     lose: () => [392, 330, 262].forEach((f, i) => beep(f, 0.22, 'square', 0.15, i * 0.16)),
   };

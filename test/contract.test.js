@@ -65,6 +65,13 @@ test('the contract checker catches broken manifests', async () => {
   assert.deepEqual(validateManifest({ ...manifest, layouts: { play: [{ control: 'swipe', id: 'p', direction: 'diagonal' }] } }).length, 1);
   assert.deepEqual(validateManifest({ ...manifest, layouts: { play: [{ control: 'pads', id: 'p', pads: 4 }] } }), []);
   assert.deepEqual(validateManifest({ ...manifest, layouts: { play: [{ control: 'pads', id: 'p', pads: 6 }] } }).length, 1);
+  // Small tap buttons sit under the main control: up to two of them.
+  const tap = (id, size) => ({ control: 'tap', id, ...(size ? { size } : {}) });
+  assert.deepEqual(validateManifest({ ...manifest, layouts: { play: [tap('a'), tap('b', 'small'), tap('c', 'small')] } }), []);
+  assert.equal(validateManifest({ ...manifest, layouts: { play: [tap('a'), tap('b'), tap('c')] } }).length, 1, 'three big controls');
+  assert.equal(validateManifest({ ...manifest, layouts: { play: [tap('b', 'small')] } }).length, 1, 'no main control');
+  assert.equal(validateManifest({ ...manifest, layouts: { play: [tap('a', 'tiny')] } }).length, 1);
+  assert.equal(validateManifest({ ...manifest, layouts: { play: [{ control: 'swipe', id: 'p', size: 'small' }] } }).length, 1);
 });
 
 test('the controller kit is small: only the controls the games use', () => {
