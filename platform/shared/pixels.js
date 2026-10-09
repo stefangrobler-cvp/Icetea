@@ -82,6 +82,10 @@ export const ICON_ART = {
   '💨': ['......uu..', '........u.', 'uuuuuuuuu.', '..........', '.wwwwwwwww', '..........', 'uuuuuuu...', '.......u..', '.....uu...'],
   '🌋': ['m.......m', '.m.....m.', '.........', 'nnnnynnnn', 'nnnyynnnn', 'NNNNyyNNN', 'nnnnnynnn', 'nnnnyynnn'],
   '🧩': ['cccccc..', 'cccccc..', '..cc..mm', '..cc..mm', 'gggg..mm', 'gggg..mm'],
+  '🛹': ['............', '.cccccccccc.', 'cccccccccccc', '.cccccccccc.', '..yy....yy..', '..yy....yy..'],
+  '💎': ['..ccccc..', '.ccuuucc.', 'ccccccccc', '.cuucuuc.', '..ccucc..', '...ccc...', '....c....'],
+  '📲': ['...kkkkkk...', 'm..kccccck.m', '...kccccck..', 'm..kccccck.m', '...kccccck..', 'm..kccccck.m', '...kkkwkkk..', '....kkkkk...'],
+  '👆': ['...ww...', '...ww...', '...ww...', '...wwww.', '.w.wwwww', '.wwwwwww', '.wwwwwww', '..wwwww.', '..wwwww.'],
 };
 
 /** Every grapheme in a string of emoji, e.g. '🧒🧒⚡🤖' -> ['🧒', '🧒', '⚡', '🤖']. */

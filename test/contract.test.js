@@ -72,6 +72,8 @@ test('the contract checker catches broken manifests', async () => {
   assert.equal(validateManifest({ ...manifest, layouts: { play: [tap('b', 'small')] } }).length, 1, 'no main control');
   assert.equal(validateManifest({ ...manifest, layouts: { play: [tap('a', 'tiny')] } }).length, 1);
   assert.equal(validateManifest({ ...manifest, layouts: { play: [{ control: 'swipe', id: 'p', size: 'small' }] } }).length, 1);
+  assert.deepEqual(validateManifest({ ...manifest, layouts: { play: [{ control: 'tilt', id: 't', mode: 'slide' }] } }), []);
+  assert.equal(validateManifest({ ...manifest, layouts: { play: [{ control: 'tilt', id: 't', mode: 'wobble' }] } }).length, 1);
 });
 
 test('the controller kit is small: only the controls the games use', () => {

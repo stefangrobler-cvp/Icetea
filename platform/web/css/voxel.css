@@ -329,3 +329,13 @@ button.go:not([disabled]).breathe { animation: breathe 1.8s ease-in-out infinite
 .tap-shape i img.pix { height: calc(var(--cell) * 0.72); width: auto; transform: rotate(calc(var(--turns) * -90deg)); transition: transform 0.22s; }
 .tap-block.shape .tap-cable { height: calc(var(--cell) * 0.8); }
 @media (prefers-reduced-motion: reduce) { .tap-control.tap-small .tap-icon { animation: none; } }
+
+/* Kit tilt on its own (e.g. Glow Tube): a big rail across the middle of the phone,
+   your animal on the puck. Tilt the phone, or (slide mode) slide a thumb anywhere. */
+.zones > .tilt-control:only-child { flex: 1; flex-direction: column; gap: 22px; border-radius: 10px; border: 3px solid var(--me); box-shadow: 0 0 24px -4px var(--me); }
+.zones > .tilt-control:only-child .tilt-rail { height: 110px; border-radius: 55px; width: 92%; }
+.zones > .tilt-control:only-child .tilt-puck { width: 96px; height: 96px; background: #160934; border: 4px solid var(--me); }
+.zones > .tilt-control:only-child .tilt-puck img.pix { width: 70px; height: auto; }
+.zones > .tilt-control:only-child .tilt-ask { width: 80%; height: 90px; font-size: 26px; border-radius: 45px; }
+.zones > .tilt-control:only-child::before { content: '◀  ▶'; font: 22px var(--pixel); color: var(--me); opacity: 0.6; }
+.zones > .tilt-control.tilt-slide:only-child { touch-action: none; }

@@ -22,7 +22,8 @@ export const CONTROLS = {
   // size 'small': a smaller button in a row under the layout's main control.
   tap: { settings: ['id', 'label', 'size'], sizes: ['small'] },
   // Tilt the phone left / right (or drag a rail where there's no motion sensor). Value: -1 .. 1.
-  tilt: { settings: ['id', 'label'] },
+  // mode 'slide': no motion sensor, always a big rail to slide a thumb along.
+  tilt: { settings: ['id', 'label', 'mode'], modes: ['slide'] },
   // 2-4 big pads in fixed colours (cyan, pink, yellow, green). Value: { pad, down: true|false }.
   pads: { settings: ['id', 'label', 'pads'] },
   // A touchpad moving a cursor on the big screen. Value: { x, y } (0..1), { x, y, tap: true }, { back: true }.
@@ -107,6 +108,7 @@ export function validateManifest(m) {
         if (key !== 'control' && !kind.settings.includes(key)) err(`${where}: ${c.control} has no setting "${key}"`);
       }
       if (c.look && !kind.looks?.includes(c.look)) err(`${where}: ${c.control} has no look "${c.look}"`);
+      if (c.mode && !kind.modes?.includes(c.mode)) err(`${where}: ${c.control} has no mode "${c.mode}"`);
       if (c.size && !kind.sizes?.includes(c.size)) err(`${where}: ${c.control} has no size "${c.size}"`);
       if (c.direction && !kind.directions?.includes(c.direction)) err(`${where}: ${c.control} has no direction "${c.direction}"`);
       if (c.control === 'pads' && c.pads !== undefined && !(Number.isInteger(c.pads) && c.pads >= 2 && c.pads <= 4)) err(`${where}: pads must be 2, 3 or 4`);

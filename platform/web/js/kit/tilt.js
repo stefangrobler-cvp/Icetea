@@ -6,21 +6,31 @@
 // Phones without a motion sensor (or where it was refused) get the same rail to
 // drag with a finger instead: we use what the device has.
 //
+// Setting: mode 'slide' skips the motion sensor: always a big rail to slide a thumb
+// along (anywhere on the control), where the thumb's place is the value.
+// On its own in a layout, the control fills the phone with a big rail, and the puck
+// shows the player's animal (unless the spec has a label).
+//
 // Sends a number from -1 (tilted left) to 1 (tilted right).
+
+import { pix } from '../pixels.js';
 
 const FULL_TILT_DEG = 20; // tilting this far gives the full value
 const SEND_EVERY_MS = 40;
 let granted = false; // iPhone permission, asked once per visit
 
 export function tilt(el, spec, ctx) {
-  el.className = 'tilt-control';
+  const slide = spec.mode === 'slide';
+  el.className = slide ? 'tilt-control tilt-slide' : 'tilt-control';
   el.innerHTML = `
     <div class="tilt-rail"><div class="tilt-puck"></div></div>
     <button class="tilt-ask hidden">📲 Tap to tilt</button>`;
   const rail = el.querySelector('.tilt-rail');
   const puck = el.querySelector('.tilt-puck');
   const ask = el.querySelector('.tilt-ask');
-  puck.textContent = spec.label || '';
+  const me = ctx.me?.() || {};
+  if (spec.label) puck.textContent = spec.label;
+  else if (me.avatar) puck.innerHTML = pix(me.avatar, 'pix');
 
   if (ctx.values[spec.id] === undefined) ctx.values[spec.id] = 0;
   let lastSent = 0;
@@ -66,7 +76,9 @@ export function tilt(el, spec, ctx) {
 
   const needsPermission = typeof DeviceOrientationEvent !== 'undefined'
     && typeof DeviceOrientationEvent.requestPermission === 'function';
-  if (needsPermission && !granted) {
+  if (slide) {
+    useDrag();
+  } else if (needsPermission && !granted) {
     rail.classList.add('hidden');
     ask.classList.remove('hidden');
     ask.addEventListener('click', async () => {
@@ -91,13 +103,14 @@ export function tilt(el, spec, ctx) {
   };
   const tstart = (e) => { e.preventDefault(); dragTo(e.changedTouches[0].clientX); };
   const tmove = (e) => { e.preventDefault(); dragTo(e.changedTouches[0].clientX); };
-  rail.addEventListener('touchstart', tstart, { passive: false });
-  rail.addEventListener('touchmove', tmove, { passive: false });
+  const area = slide ? el : rail; // slide: a thumb anywhere on the control counts
+  area.addEventListener('touchstart', tstart, { passive: false });
+  area.addEventListener('touchmove', tmove, { passive: false });
   let mouse = false;
   const mdown = (e) => { mouse = true; dragTo(e.clientX); };
   const mmove = (e) => { if (mouse) dragTo(e.clientX); };
   const mup = () => { mouse = false; };
-  rail.addEventListener('mousedown', mdown);
+  area.addEventListener('mousedown', mdown);
   window.addEventListener('mousemove', mmove);
   window.addEventListener('mouseup', mup);
 
